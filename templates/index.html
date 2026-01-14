@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Infinite Book Architect</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+
+<body>
+  <div class="container">
+    <h1>Infinite Book Architect</h1>
+
+    <!-- STEP 1: IDEA -->
+    <details id="step-1" class="step" open>
+      <summary>
+        <span class="step-title">Step 1 — Idea</span>
+        <span id="step-1-status" class="step-status">In progress</span>
+      </summary>
+
+      <div class="step-body">
+        <div class="input-group">
+          <input type="text" id="genre" placeholder="Genre (e.g. Cyberpunk)" value="Cyberpunk" />
+          <input type="text" id="idea" placeholder="Idea (e.g. Hacker finds a ghost)" value="A hacker finds a ghost in the server" />
+          <button id="btn-refine">Refine ✨</button>
+        </div>
+
+        <div class="loader" id="loader-1">Brainstorming variations...</div>
+        <div class="grid" id="variations-grid"></div>
+
+        <div class="center-btn-area" id="confirm-idea-area" style="display:none;">
+          <button id="btn-generate-plot">Generate Plot for Selected Story ➡️</button>
+        </div>
+      </div>
+    </details>
+
+    <!-- STEP 2: PLOT -->
+    <details id="step-2" class="step">
+      <summary>
+        <span class="step-title">Step 2 — Plot</span>
+        <span id="step-2-status" class="step-status">Locked</span>
+      </summary>
+
+      <div class="step-body">
+        <h2>Chapter Outline</h2>
+        <div class="loader" id="loader-2">Designing story arc...</div>
+        <div id="plot-content" class="plot-container" style="display:none;"></div>
+
+        <div class="center-btn-area">
+          <button id="btn-generate-chars" disabled>Create Cast of Characters 👥</button>
+        </div>
+      </div>
+    </details>
+
+    <!-- STEP 3: CHARACTERS -->
+    <details id="step-3" class="step">
+      <summary>
+        <span class="step-title">Step 3 — Characters</span>
+        <span id="step-3-status" class="step-status">Locked</span>
+      </summary>
+
+      <div class="step-body">
+        <h2>Dramatis Personae</h2>
+        <div class="loader" id="loader-3">Casting roles...</div>
+
+        <div id="chars-container" style="display:none;">
+          <h3>Protagonists</h3>
+          <div class="grid" id="protagonists-grid"></div>
+
+          <h3 class="header-antagonist">Antagonists</h3>
+          <div class="grid" id="antagonists-grid"></div>
+
+          <h3 class="header-supporting">Supporting Cast</h3>
+          <div class="grid" id="supporting-grid"></div>
+        </div>
+
+        <div class="center-btn-area">
+          <button id="btn-plan-chapter" style="background:#10b981; font-size:1.2rem;" disabled>
+            Plan Chapter 1 📝
+          </button>
+        </div>
+      </div>
+    </details>
+
+    <!-- STEP 4: CHAPTER BEATS -->
+    <details id="step-4" class="step">
+      <summary>
+        <span class="step-title">Step 4 — Chapter Beats</span>
+        <span id="step-4-status" class="step-status">Locked</span>
+      </summary>
+
+      <div class="step-body">
+        <h2>Chapter Blueprint</h2>
+        <div class="loader" id="loader-4">Breaking down the chapter...</div>
+
+        <div id="beats-container" style="display:none;">
+          <h3 id="current-chapter-title-display"></h3>
+          <div class="beats-list" id="beats-list"></div>
+
+          <div class="center-btn-area">
+            <button id="btn-write-it" style="background:#6366f1; font-size:1.2rem;" disabled>
+              Write It! ✍️
+            </button>
+          </div>
+        </div>
+      </div>
+    </details>
+
+    <!-- STEP 5: WRITE (PROSE) -->
+    <details id="step-5" class="step">
+      <summary>
+        <span class="step-title">Step 5 — Write</span>
+        <span id="step-5-status" class="step-status">Locked</span>
+      </summary>
+
+      <div class="step-body">
+        <h2>Chapter Text</h2>
+
+          <div class="center-btn-area"
+               style="margin-bottom:12px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+              <button id="btn-write-next" style="background:#6366f1; font-size:1.1rem;" disabled>
+                  Write Next Beat ▶
+              </button>
+
+              <button id="btn-generate-all" style="background:#0ea5e9; font-size:1.1rem;" disabled>
+                  Generate All ⏩
+              </button>
+
+              <button id="btn-clear-all" style="background:#ef4444; font-size:1.1rem;" disabled>
+                  Clear All 🗑
+              </button>
+          </div>
+
+        <div id="write-beats-list" class="beats-list"></div>
+
+        <pre id="generated-text"
+             style="display:none; white-space:pre-wrap; margin-top:16px; padding:12px; background:#0b1220; color:#e2e8f0; border-radius:8px;"></pre>
+      </div>
+    </details>
+  </div>
+
+  <!-- Monitoring Widget -->
+  <div id="monitor-widget">
+    <div class="monitor-title">SYSTEM STATUS</div>
+
+    <div class="mon-row">
+      <span class="mon-label">Ollama:</span>
+      <span><span id="ollama-dot" class="status-dot"></span><span id="ollama-status">Checking...</span></span>
+    </div>
+
+    <div class="mon-row">
+      <span class="mon-label">GPU:</span>
+      <span id="gpu-name" class="mon-val">...</span>
+    </div>
+
+    <div class="mon-row">
+      <span class="mon-label">Load:</span>
+      <span id="gpu-load" class="mon-val">0%</span>
+    </div>
+
+    <div class="mon-vram">
+      <div class="mon-row" style="margin-bottom:2px;">
+        <span class="mon-label">VRAM:</span>
+        <span id="vram-text" class="mon-val">0 / 0 MB</span>
+      </div>
+      <div class="progress-bg">
+        <div id="vram-bar" class="progress-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/utils.js"></script>
+  <script src="/static/monitor.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
