@@ -75,7 +75,7 @@
         </div>
 
         <div class="center-btn-area">
-          <button id="btn-plan-chapter" style="background:#10b981; font-size:1.2rem;" disabled>
+          <button id="btn-plan-chapter-step3" style="background:#10b981; font-size:1.2rem;" disabled>
             Plan Chapter 1 📝
           </button>
         </div>
@@ -95,6 +95,13 @@
 
         <div id="beats-container" style="display:none;">
           <h3 id="current-chapter-title-display"></h3>
+          <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:10px;">
+            <button id="btn-plan-chapter" disabled>Generate plan</button>
+          </div>
+
+          <div id="step-4-plan-hint" style="text-align:center; color:#64748b; margin-top:8px;">
+            No plan loaded.
+          </div>
           <div class="beats-list" id="beats-list"></div>
 
           <div class="center-btn-area">
@@ -115,6 +122,11 @@
 
       <div class="step-body">
         <h2>Chapter Text</h2>
+
+        <div class="center-btn-area" style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+          <button id="btn-prev-chapter" disabled>◀ Prev Chapter</button>
+          <button id="btn-next-chapter" disabled>Next Chapter ▶</button>
+        </div>
 
           <div class="center-btn-area"
                style="margin-bottom:12px; display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">

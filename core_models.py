@@ -80,6 +80,7 @@ class CharactersRequest(BaseModel):
 
 
 class ChapterPlanRequest(BaseModel):
+    chapter: int = 1
     title: str
     genre: str
     chapter_title: str

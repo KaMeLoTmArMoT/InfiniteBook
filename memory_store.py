@@ -64,8 +64,8 @@ class MemoryStore:
     async def a_update_character(self, char_id: int, patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return await anyio.to_thread.run_sync(self.update_character, char_id, patch)
 
-    async def a_load_state(self) -> Dict[str, Any]:
-        return await anyio.to_thread.run_sync(self.load_state)
+    async def a_load_state(self, chapter: int = 1) -> Dict[str, Any]:
+        return await anyio.to_thread.run_sync(self.load_state, chapter)
 
     async def a_kv_set_raw(self, key: str, raw_json: str) -> None:
         await anyio.to_thread.run_sync(self.kv_set_raw, key, raw_json)
@@ -181,18 +181,20 @@ class MemoryStore:
             return None
         return {"id": row[0], "kind": row[1], "name": row[2], "role": row[3], "bio": row[4]}
 
-    def load_state(self) -> Dict[str, Any]:
+    def load_state(self, chapter: int = 1) -> Dict[str, Any]:
         selected = self.kv_get("selected") or None
         plot = self.kv_get("plot") or None
-        beats_ch1 = self.kv_get("beats_ch1") or None
         characters = self.list_characters_grouped()
-        beat_texts_ch1 = self.list_beat_texts(chapter=1)
+        beats_plan = self.kv_get(f"beats_ch{chapter}") or None
+        beat_texts = self.list_beat_texts(chapter=chapter)
+
         return {
             "selected": selected,
             "plot": plot,
             "characters": characters,
-            "beats_ch1": beats_ch1,
-            "beat_texts_ch1": beat_texts_ch1,
+            "chapter": chapter,
+            "beats": beats_plan,
+            "beat_texts": beat_texts,
         }
 
     def kv_set_raw(self, key: str, raw_json: str) -> None:
@@ -215,17 +217,16 @@ class MemoryStore:
 
         with sqlite3.connect(self.db_path) as con:
             rows = con.execute(
-                "SELECT key, json FROM kv WHERE key LIKE ? ORDER BY key ASC",
+                "SELECT key, json FROM kv WHERE key LIKE ?",
                 (like_pat,),
             ).fetchall()
 
         out: dict[int, str] = {}
         for key, raw in rows:
             try:
-                idx_str = key.replace(prefix, "")
-                idx = int(idx_str)
+                idx = int(key.replace(prefix, ""))
                 obj = json.loads(raw)
-                if isinstance(obj, dict) and "text" in obj:
+                if isinstance(obj, dict) and isinstance(obj.get("text"), str):
                     out[idx] = obj["text"]
             except Exception:
                 continue
@@ -238,17 +239,13 @@ class MemoryStore:
             con.commit()
 
     def clear_beat_texts_from(self, chapter: int, from_beat_index: int) -> None:
-        """
-        Deletes ch{chapter}_beat_{i} for all i >= from_beat_index.
-        Avoid relying on lexicographic ordering (beat_10 vs beat_2), parse indexes.
-        """
         prefix = f"ch{chapter}_beat_"
         like_pat = prefix + "%"
 
         with sqlite3.connect(self.db_path) as con:
             rows = con.execute("SELECT key FROM kv WHERE key LIKE ?", (like_pat,)).fetchall()
 
-            keys_to_delete = []
+            keys_to_delete: list[tuple[str]] = []
             for (k,) in rows:
                 try:
                     idx = int(k.replace(prefix, ""))

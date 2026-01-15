@@ -80,8 +80,8 @@ async def home(request: Request):
 
 
 @app.get("/api/state")
-async def api_state():
-    return await store.a_load_state()
+async def api_state(chapter: int = 1):
+    return await store.a_load_state(chapter=chapter)
 
 
 @app.delete("/api/characters/{char_id}")
@@ -179,7 +179,7 @@ async def generate_characters(req: CharactersRequest):
 
 @app.post("/api/chapter_plan")
 async def generate_chapter_plan(req: ChapterPlanRequest):
-    log.info(f"Step 4: Generating chapter beats. Chapter='{req.chapter_title}'")
+    log.info(f"Step 4: Generating chapter beats. Chapter={req.chapter} '{req.chapter_title}'")
 
     if req.characters and isinstance(req.characters[0], dict):
         characters_present = ", ".join([c.get("name", "") for c in req.characters if c.get("name")])
@@ -201,8 +201,7 @@ async def generate_chapter_plan(req: ChapterPlanRequest):
     beats: ChapterPlanResponse = await call_llm_json(prompt, ChapterPlanResponse, temperature=CFG.TEMP_BEATS)
 
     payload = beats.model_dump()
-    await store.a_kv_set("beats_ch1", payload)
-
+    await store.a_kv_set(f"beats_ch{req.chapter}", payload)
     return payload
 
 
@@ -216,11 +215,11 @@ def _tail_chars(text: str, approx_tokens: int = 400) -> str:
 async def write_beat(chapter: int = 1, beat_index: int = 0):
     log.info(f"Step 5: Writing beat text. Chapter={chapter}, beat_index={beat_index}")
 
-    beats_ch1 = await store.a_kv_get("beats_ch1")
-    if not beats_ch1 or "beats" not in beats_ch1:
+    beats_plan = await store.a_kv_get(f"beats_ch{chapter}")
+    if not beats_plan or "beats" not in beats_plan:
         return {"error": "No beats plan found. Run Step 4 first."}
 
-    beats = beats_ch1["beats"]
+    beats = beats_plan["beats"]
     if beat_index < 0 or beat_index >= len(beats):
         return {"error": "Invalid beat_index"}
 
