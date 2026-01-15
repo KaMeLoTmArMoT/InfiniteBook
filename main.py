@@ -2,15 +2,16 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import StreamingResponse
 import asyncio
 from fastapi import WebSocket, WebSocketDisconnect
 from ollama import AsyncClient
 from pydantic import ValidationError
 
-from core_logger import log
-from core_models import *
-from memory_store import MemoryStore
+from utils.core_logger import log
+from utils.core_models import *
+from utils.prompts import *
+from utils.utils import *
+from utils.memory_store import MemoryStore
 
 app = FastAPI()
 ollama_client = AsyncClient()
