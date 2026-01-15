@@ -16,8 +16,8 @@ class AppConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="IB_", env_file=".env", env_file_encoding="utf-8")
 
     # Model
-    MODEL_NAME: str = "llama3.1:8b"
-    # MODEL_NAME: str = "gemma2:9b"
+    # MODEL_NAME: str = "llama3.1:8b"
+    MODEL_NAME: str = "gemma3:12b"
 
     # Generation sizes
     REFINE_VARIATIONS: int = 5  # UI total will be +1 original
@@ -92,6 +92,10 @@ class ChapterPlanRequest(BaseModel):
     characters: list
 
 
+class BuildContinuityRequest(BaseModel):
+    chapter: int
+
+
 # --- RESPONSE MODELS (LLM output contracts) ---
 
 class WriteBeatResponse(BaseModel):
@@ -148,6 +152,10 @@ class CharacterPatch(BaseModel):
     role: str | None = None
     bio: str | None = None
     kind: str | None = None
+
+
+class ChapterContinuity(BaseModel):
+    bullets: List[str] = Field(default_factory=list, description="10–20 bullet continuity capsule")
 
 
 class ClearBeatRequest(BaseModel):
@@ -242,6 +250,12 @@ Requirements:
 - Cause -> effect progression across beats.
 - STAGE BUSINESS: Ensure characters are doing physical tasks while interacting. No "talking heads" in a void.
 
+PREVIOUS CHAPTER CONTINUITY (summary of what ACTUALLY happened; may be empty):
+{prev_chapter_continuity}
+
+PREVIOUS CHAPTER ENDING EXCERPT (tail of last scene; may be empty):
+{prev_chapter_ending_excerpt}
+
 {hard_rules}
 {hard_rules_consistency}
 
@@ -249,45 +263,62 @@ Return JSON only that matches the schema.
 """
 
 PROMPT_WRITE_BEAT = """\
-You are a professional novelist.
+You are a lead novelist for a gritty, high-stakes thriller.
 
-Task: Write the prose for the CURRENT beat of the chapter.
+### TASK
+Write the prose for **Beat {beat_number}** ({beat_type}).
 
-Context (previous beats descriptions):
-{prev_beats}
-
-Context (tail of previously written prose - use this to determine FLOW):
+### CONTEXT
+**PREVIOUS TEXT (Already Written):**
 \"\"\"{prev_text}\"\"\"
 
-CURRENT beat (Beat {beat_number}, {beat_type}):
+**CURRENT BEAT PLAN:**
 {beat_description}
 
-Writing requirements:
-- 2-6 paragraphs.
-- CONTINUITY: The first sentence must logically and grammatically follow the last sentence of the 'prev_text'.
-- ACTIVE VOICE: Focus on what is happening NOW. 
-- SHOW, DON'T TELL: Use sensory details.
+### CRITICAL RULES (VIOLATION = FAILURE)
 
-CRITICAL "SENTENCE ATTACK" RULES:
-1. DO NOT start the first sentence with a Character Name (e.g., "Maya...", "Lex...").
-2. DO NOT start the first sentence with a Pronoun (e.g., "She...", "He...").
-3. DO NOT summarize the previous action. (e.g., if the last chunk was 'she sat down', do not start with 'Sitting in the chair...').
-4. Start with:
-   - A sensory detail ("The smell of ozone...")
-   - A reaction ("Suddenly, the screen flickered...")
-   - Dialogue ("Wait," she whispered...)
-   - A prepositional phrase ("Under the desk...")
-   - An action verb ("Slamming the laptop shut...")
+1.  **FORWARD MOTION (NO LOOPING):**
+    * The "Previous Text" has already happened. **Do not summarize it.**
+    * **Do not** re-state the last action.
+    * Write what happens **1 second later**. Move the timeline forward immediately.
 
-STYLE RESTRICTIONS:
-- No clichés.
-- No navel-gazing.
-- Do not rename characters.
+2.  **SENTENCE ATTACK (VARY STARTS):**
+    * **BANNED:** Do NOT start the first sentence with a Proper Name (e.g., "Arin...") or Pronoun ("He...").
+    * **REQUIRED:** Start the first sentence with:
+        * A sound ("The click of the safety...")
+        * A smell ("Ozone hung heavy...")
+        * A physical sensation ("Cold metal pressed against...")
+        * Dialogue ("'Get down,' he hissed...")
 
-IMPORTANT OUTPUT FORMAT:
-Return JSON ONLY matching the schema:
+3.  **NEGATIVE CONSTRAINTS (BANNED WORDS):**
+    * **Strictly forbidden:** "shiver down spine", "air thickened", "unseen hand", "cacophony", "labyrinthine", "neon" (use specific colors instead), "pulsing energy", "moths to a flame".
+    * **No filter words:** Avoid "He saw", "She felt", "He heard". Describe the thing seen/felt/heard directly.
+
+4.  **STAGE BUSINESS:**
+    * Characters must **DO** things while talking (lighting a cigarette, checking a weapon, cleaning glasses). No "talking heads" in a void.
+
+### OUTPUT FORMAT
+Return JSON ONLY. No markdown, no pre-text.
 {{"text": "..."}}
 """
+
+PROMPT_CHAPTER_CONTINUITY = """
+You are an editor creating a short continuity capsule for the next chapter planning.
+
+Return JSON ONLY with:
+{{
+  "bullets": ["...", "..."]
+}}
+
+Rules:
+- 10 to 20 bullets.
+- Each bullet must be a concrete fact from the text (events, reveals, character state, unresolved threads).
+- No speculation, no new facts.
+- Keep bullets short (max ~18 words each).
+
+CHAPTER PROSE:
+{chapter_prose}
+""".strip()
 
 
 # --- JSON HELPERS (fallback) ---

@@ -1,164 +1,107 @@
+/* ========= Tiny helpers ========= */
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+const on = (sel, evt, fn, root = document) => {
+  const el = $(sel, root);
+  if (el) el.addEventListener(evt, fn);
+  return el;
+};
+const show = (sel, yes, root = document) => {
+  const el = $(sel, root);
+  if (el) el.style.display = yes ? "block" : "none";
+};
+const setDisabled = (sel, disabled, root = document) => {
+  const el = $(sel, root);
+  if (el) el.disabled = !!disabled;
+};
+const setDisabledMany = (sels, disabled, root = document) => sels.forEach((s) => setDisabled(s, disabled, root));
+
+/* ========= State ========= */
 let selectedData = null;
 let currentPlotData = null;
 let currentCharacters = null;
 
-let currentChapter = 1;      // 1-based chapter index
-let currentBeats = null;     // Step 4 beats array for current chapter
-let beatTexts = {};          // { idx: "text" } for current chapter (idx is 0-based)
+let currentChapter = 1;      // 1-based
+let currentBeats = null;     // beats array for current chapter
+let beatTexts = {};          // { idx: text } for current chapter (0-based)
 
-// Assumes these helpers exist globally (utils.js / monitor.js):
-// fetchJSON, openStep, setStepStatus, enableSingleOpenAccordion, escapeHTML, connectMonitor
-
+/* ========= Boot ========= */
 document.addEventListener("DOMContentLoaded", () => {
-  const btnRefine = document.getElementById("btn-refine");
-  if (btnRefine) btnRefine.addEventListener("click", refineIdea);
+  on("#btn-refine", "click", refineIdea);
+  on("#btn-generate-plot", "click", generatePlot);
+  on("#btn-generate-chars", "click", generateCharacters);
 
-  const btnPlot = document.getElementById("btn-generate-plot");
-  if (btnPlot) btnPlot.addEventListener("click", generatePlot);
+  // Step 4 plan button (scoped => immune to duplicate IDs)
+  on("#step-4 #btn-plan-chapter", "click", planCurrentChapter);
 
-  const btnChars = document.getElementById("btn-generate-chars");
-  if (btnChars) btnChars.addEventListener("click", generateCharacters);
+  // Optional legacy Step 3 button (if present)
+  on("#btn-plan-chapter-step3", "click", async () => {
+    currentChapter = 1;
+    syncChapterUI();
+    openStep("step-4", { scroll: true });
+    await planCurrentChapter();
+  });
 
-  // Step 4 plan button (IMPORTANT: scoped selector)
-  const btnPlanStep4 = document.querySelector("#step-4 #btn-plan-chapter");
-  if (btnPlanStep4) btnPlanStep4.addEventListener("click", planCurrentChapter);
+  on("#btn-write-next", "click", writeNextBeat);
+  on("#btn-clear-all", "click", clearAllBeats);
+  on("#btn-generate-all", "click", generateAllBeats);
 
-  // Optional: Step 3 legacy button (rename in HTML to btn-plan-chapter-step3)
-  const btnPlanStep3 = document.getElementById("btn-plan-chapter-step3");
-  if (btnPlanStep3) {
-    btnPlanStep3.addEventListener("click", async () => {
-      // convenience: open step 4, ensure chapter 1 is selected, then plan
-      currentChapter = 1;
-      updateChapterNavButtons();
-      setChapterTitleDisplay();
-      updatePlanButtonUI();
-      openStep("step-4", { scroll: true });
-      await planCurrentChapter();
-    });
-  }
+  on("#btn-prev-chapter", "click", () => gotoChapter(currentChapter - 1));
+  on("#btn-next-chapter", "click", () => gotoChapter(currentChapter + 1));
+
+  on("#step-4 #btn-write-it", "click", () => openStep("step-5", { scroll: true }));
 
   enableSingleOpenAccordion();
   wireCharacterDeleteDelegation();
-
-  // Step 5 handlers
   wireWriteBeatDelegation();
-
-  const btnWriteNext = document.getElementById("btn-write-next");
-  if (btnWriteNext) btnWriteNext.addEventListener("click", writeNextBeat);
-
-  const btnClearAll = document.getElementById("btn-clear-all");
-  if (btnClearAll) btnClearAll.addEventListener("click", clearAllBeats);
-
-  const btnGenAll = document.getElementById("btn-generate-all");
-  if (btnGenAll) btnGenAll.addEventListener("click", generateAllBeats);
-
-  // Chapter nav (Step 5 buttons in your HTML)
-  const btnPrev = document.getElementById("btn-prev-chapter");
-  if (btnPrev) btnPrev.addEventListener("click", () => gotoChapter(currentChapter - 1));
-
-  const btnNext = document.getElementById("btn-next-chapter");
-  if (btnNext) btnNext.addEventListener("click", () => gotoChapter(currentChapter + 1));
-
-  // Step 4 "Write It" button
-  const btnWriteIt = document.querySelector("#step-4 #btn-write-it");
-  if (btnWriteIt) btnWriteIt.addEventListener("click", () => openStep("step-5", { scroll: true }));
 
   loadStateOnStart();
   connectMonitor();
 });
 
-/* ---------------------------
-   CHAPTER NAV
----------------------------- */
-
+/* ========= UI helpers ========= */
 function totalChapters() {
-  return (currentPlotData && currentPlotData.chapters && currentPlotData.chapters.length)
-    ? currentPlotData.chapters.length
-    : 0;
-}
-
-function updateChapterNavButtons() {
-  const total = totalChapters();
-
-  const btnPrev = document.getElementById("btn-prev-chapter");
-  const btnNext = document.getElementById("btn-next-chapter");
-
-  if (btnPrev) btnPrev.disabled = !(total > 0 && currentChapter > 1);
-  if (btnNext) btnNext.disabled = !(total > 0 && currentChapter < total);
+  return currentPlotData?.chapters?.length || 0;
 }
 
 function setChapterTitleDisplay() {
-  const el = document.getElementById("current-chapter-title-display");
-  if (!el) return;
-
   const ch = currentPlotData?.chapters?.[currentChapter - 1];
-  el.innerText = ch ? `Ch ${currentChapter}: ${ch.title}` : `Ch ${currentChapter}`;
+  const el = $("#current-chapter-title-display");
+  if (el) el.innerText = ch ? `Ch ${currentChapter}: ${ch.title}` : `Ch ${currentChapter}`;
 }
-
-async function gotoChapter(chapterNum) {
-  const total = totalChapters();
-  if (total <= 0) return;
-  if (chapterNum < 1 || chapterNum > total) return;
-
-  currentChapter = chapterNum;
-  updateChapterNavButtons();
-  setChapterTitleDisplay();
-
-  // While loading, show Step 4 (so user sees chapter changed)
-  showStep4Container();
-  setStepStatus("step-4", `Loading (Ch ${currentChapter})...`);
-  updatePlanButtonUI();
-
-  await loadChapterState(currentChapter, { open: true });
-}
-
-function enableStep5Buttons(enabled) {
-  const btnWriteNext = document.getElementById("btn-write-next");
-  if (btnWriteNext) btnWriteNext.disabled = !enabled;
-
-  const btnClearAll = document.getElementById("btn-clear-all");
-  if (btnClearAll) btnClearAll.disabled = !enabled;
-
-  const btnGenAll = document.getElementById("btn-generate-all");
-  if (btnGenAll) btnGenAll.disabled = !enabled;
-}
-
-function enableWriteIt(enabled) {
-  const btnWriteIt = document.querySelector("#step-4 #btn-write-it");
-  if (btnWriteIt) btnWriteIt.disabled = !enabled;
-}
-
-/* ---------------------------
-   STEP 4 CONTAINER VISIBILITY
----------------------------- */
 
 function showStep4Container() {
-  const loader = document.getElementById("loader-4");
-  const container = document.getElementById("beats-container");
-  if (loader) loader.style.display = "none";
-  if (container) container.style.display = "block";
+  show("#loader-4", false);
+  show("#beats-container", true);
 }
-
-/* ---------------------------
-   STEP 4 PLAN BUTTON UI
----------------------------- */
 
 function hasBeatsPlanLoaded() {
   return !!(currentBeats && currentBeats.length);
 }
 
-function updatePlanButtonUI() {
-  // IMPORTANT: scope to Step 4 so duplicate IDs can't break it
-  const btn = document.querySelector("#step-4 #btn-plan-chapter");
-  const hint = document.getElementById("step-4-plan-hint");
+function setStep5Enabled(enabled) {
+  setDisabledMany(["#btn-write-next", "#btn-generate-all", "#btn-clear-all"], !enabled);
+}
 
-  const canPlan = !!(selectedData && currentPlotData && currentPlotData.chapters && currentPlotData.chapters.length);
+function setChapterNavEnabled(enabled) {
+  const total = totalChapters();
+  setDisabled("#btn-prev-chapter", !(enabled && total > 0 && currentChapter > 1));
+  setDisabled("#btn-next-chapter", !(enabled && total > 0 && currentChapter < total));
+}
+
+function enableWriteIt(enabled) {
+  setDisabled("#step-4 #btn-write-it", !enabled);
+}
+
+function updatePlanButtonUI() {
+  const canPlan = !!(selectedData && currentPlotData?.chapters?.length);
+  const btn = $("#step-4 #btn-plan-chapter");
+  const hint = $("#step-4-plan-hint");
 
   if (btn) {
     btn.disabled = !canPlan;
     btn.innerText = hasBeatsPlanLoaded() ? "Regenerate plan" : "Generate plan";
   }
-
   if (hint) {
     hint.innerText = hasBeatsPlanLoaded()
       ? `Plan loaded (Ch ${currentChapter}).`
@@ -169,43 +112,40 @@ function updatePlanButtonUI() {
   setStepStatus("step-4", hasBeatsPlanLoaded() ? `Loaded (Ch ${currentChapter})` : `No plan (Ch ${currentChapter})`);
 }
 
-/* ---------------------------
-   STATE LOAD (persistence)
----------------------------- */
+function syncChapterUI() {
+  setChapterTitleDisplay();
+  setChapterNavEnabled(true);
+  updatePlanButtonUI();
+}
 
+/* ========= Persistence ========= */
 async function loadChapterState(chapterNum, { open = false } = {}) {
   const state = await fetchJSON(`/api/state?chapter=${chapterNum}`);
 
-  // Make sure Step 4 UI is visible even if there is no plan yet
   showStep4Container();
   setChapterTitleDisplay();
 
-  // beats plan for this chapter
-  if (state.beats && state.beats.beats) {
+  if (state.beats?.beats) {
     currentBeats = state.beats.beats;
     renderBeats(currentBeats);
 
     beatTexts = normalizeBeatTextsKeys(state.beat_texts || {});
     renderWriteBeats(currentBeats, beatTexts);
 
-    enableStep5Buttons(true);
+    setStep5Enabled(true);
     updatePlanButtonUI();
 
     if (open) openStep("step-5", { scroll: false });
     return;
   }
 
-  // No beats plan yet for this chapter
+  // no plan
   currentBeats = null;
   beatTexts = {};
+  if ($("#beats-list")) $("#beats-list").innerHTML = "";
+  if ($("#write-beats-list")) $("#write-beats-list").innerHTML = "";
 
-  const beatsList = document.getElementById("beats-list");
-  if (beatsList) beatsList.innerHTML = "";
-
-  const writeList = document.getElementById("write-beats-list");
-  if (writeList) writeList.innerHTML = "";
-
-  enableStep5Buttons(false);
+  setStep5Enabled(false);
   updatePlanButtonUI();
 
   if (open) openStep("step-4", { scroll: false });
@@ -218,19 +158,16 @@ async function loadStateOnStart() {
 
     if (state.selected) {
       selectedData = state.selected;
-      if (typeof state.selected.genre === "string") document.getElementById("genre").value = state.selected.genre;
-      if (typeof state.selected.description === "string") document.getElementById("idea").value = state.selected.description;
+      if (typeof state.selected.genre === "string") $("#genre").value = state.selected.genre;
+      if (typeof state.selected.description === "string") $("#idea").value = state.selected.description;
       setStepStatus("step-1", "Loaded");
     }
 
     if (state.plot) {
       currentPlotData = state.plot;
-      document.getElementById("loader-2").style.display = "none";
+      show("#loader-2", false);
       renderPlot(state.plot);
-
-      const btnChars = document.getElementById("btn-generate-chars");
-      if (btnChars) btnChars.disabled = false;
-
+      setDisabled("#btn-generate-chars", false);
       setStepStatus("step-2", "Loaded");
     }
 
@@ -241,29 +178,25 @@ async function loadStateOnStart() {
         ...(state.characters.antagonists || []),
         ...(state.characters.supporting || []),
       ];
-
-      document.getElementById("loader-3").style.display = "none";
-      document.getElementById("chars-container").style.display = "block";
+      show("#loader-3", false);
+      show("#chars-container", true);
       setStepStatus("step-3", "Loaded");
     }
 
-    updateChapterNavButtons();
-    setChapterTitleDisplay();
     showStep4Container();
+    syncChapterUI();
 
-    // chapter-specific beats + texts
-    if (state.beats && state.beats.beats) {
+    if (state.beats?.beats) {
       currentBeats = state.beats.beats;
       renderBeats(currentBeats);
 
       beatTexts = normalizeBeatTextsKeys(state.beat_texts || {});
       renderWriteBeats(currentBeats, beatTexts);
 
-      setStepStatus("step-4", `Loaded (Ch ${currentChapter})`);
+      setStep5Enabled(true);
       setStepStatus("step-5", `Ready (Ch ${currentChapter})`);
-      enableStep5Buttons(true);
     } else {
-      enableStep5Buttons(false);
+      setStep5Enabled(false);
     }
 
     updatePlanButtonUI();
@@ -273,11 +206,9 @@ async function loadStateOnStart() {
     else if (state.plot) openStep("step-2");
     else openStep("step-1");
   } catch (e) {
-    console.warn("No persisted state or failed to load state:", e);
-    updateChapterNavButtons();
-    setChapterTitleDisplay();
+    console.warn("Failed to load state:", e);
     showStep4Container();
-    updatePlanButtonUI();
+    syncChapterUI();
   }
 }
 
@@ -291,31 +222,38 @@ function normalizeBeatTextsKeys(obj) {
 }
 
 function firstUnwrittenIndex() {
-  if (!currentBeats || !currentBeats.length) return null;
+  if (!currentBeats?.length) return null;
   for (let i = 0; i < currentBeats.length; i++) {
     if (!beatTexts[i] || beatTexts[i].trim().length === 0) return i;
   }
   return null;
 }
 
-/* ---------------------------
-   STEP 1: REFINE IDEA
----------------------------- */
+/* ========= Chapter navigation ========= */
+async function gotoChapter(chapterNum) {
+  const total = totalChapters();
+  if (total <= 0 || chapterNum < 1 || chapterNum > total) return;
 
+  currentChapter = chapterNum;
+
+  showStep4Container();
+  setStepStatus("step-4", `Loading (Ch ${currentChapter})...`);
+
+  syncChapterUI();
+  await loadChapterState(currentChapter, { open: true });
+}
+
+/* ========= Step 1 ========= */
 async function refineIdea() {
-  const genre = document.getElementById("genre").value.trim();
-  const idea = document.getElementById("idea").value.trim();
+  const genre = $("#genre").value.trim();
+  const idea = $("#idea").value.trim();
 
-  const btn = document.getElementById("btn-refine");
-  const loader = document.getElementById("loader-1");
-  const grid = document.getElementById("variations-grid");
-
-  document.getElementById("confirm-idea-area").style.display = "none";
+  $("#confirm-idea-area").style.display = "none";
   selectedData = null;
 
-  loader.style.display = "block";
-  grid.innerHTML = "";
-  btn.disabled = true;
+  show("#loader-1", true);
+  $("#variations-grid").innerHTML = "";
+  setDisabled("#btn-refine", true);
 
   try {
     const data = await fetchJSON("/api/refine", {
@@ -323,7 +261,6 @@ async function refineIdea() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ genre, idea }),
     });
-
     renderVariations(data.options);
     setStepStatus("step-1", "Done (select one)");
   } catch (e) {
@@ -331,13 +268,13 @@ async function refineIdea() {
     alert("Error connecting to server");
     setStepStatus("step-1", "Error");
   } finally {
-    loader.style.display = "none";
-    btn.disabled = false;
+    show("#loader-1", false);
+    setDisabled("#btn-refine", false);
   }
 }
 
 function renderVariations(options) {
-  const grid = document.getElementById("variations-grid");
+  const grid = $("#variations-grid");
   grid.innerHTML = "";
 
   options.forEach((opt) => {
@@ -346,11 +283,10 @@ function renderVariations(options) {
     card.innerHTML = `<h3>${opt.title}</h3><div class="desc">${opt.description}</div>`;
 
     card.addEventListener("click", () => {
-      document.querySelectorAll(".card").forEach((c) => c.classList.remove("selected"));
+      $$(".card").forEach((c) => c.classList.remove("selected"));
       card.classList.add("selected");
       selectedData = opt;
-
-      document.getElementById("confirm-idea-area").style.display = "block";
+      $("#confirm-idea-area").style.display = "block";
       setStepStatus("step-1", "Selected");
       openStep("step-1");
       updatePlanButtonUI();
@@ -360,20 +296,15 @@ function renderVariations(options) {
   });
 }
 
-/* ---------------------------
-   STEP 2: GENERATE PLOT
----------------------------- */
-
+/* ========= Step 2 ========= */
 async function generatePlot() {
   if (!selectedData) return;
 
   openStep("step-2");
   setStepStatus("step-2", "Running...");
-  document.getElementById("loader-2").style.display = "block";
-  document.getElementById("plot-content").style.display = "none";
-
-  const btnChars = document.getElementById("btn-generate-chars");
-  if (btnChars) btnChars.disabled = true;
+  show("#loader-2", true);
+  show("#plot-content", false);
+  setDisabled("#btn-generate-chars", true);
 
   try {
     const plotData = await fetchJSON("/api/plot", {
@@ -386,25 +317,21 @@ async function generatePlot() {
     renderPlot(plotData);
 
     currentChapter = 1;
-    updateChapterNavButtons();
-    setChapterTitleDisplay();
-    showStep4Container();
+    syncChapterUI();
 
     setStepStatus("step-2", "Done");
-    if (btnChars) btnChars.disabled = false;
-
-    updatePlanButtonUI();
+    setDisabled("#btn-generate-chars", false);
   } catch (e) {
     console.error(e);
     alert("Error generating plot");
     setStepStatus("step-2", "Error");
   } finally {
-    document.getElementById("loader-2").style.display = "none";
+    show("#loader-2", false);
   }
 }
 
 function renderPlot(data) {
-  const container = document.getElementById("plot-content");
+  const container = $("#plot-content");
   container.style.display = "block";
 
   let html = `<p style="font-style:italic; margin-bottom:20px;">${data.structure_analysis || ""}</p>`;
@@ -416,21 +343,17 @@ function renderPlot(data) {
       </div>
     `;
   });
-
   container.innerHTML = html;
 }
 
-/* ---------------------------
-   STEP 3: CHARACTERS
----------------------------- */
-
+/* ========= Step 3 ========= */
 async function generateCharacters() {
   if (!currentPlotData || !selectedData) return;
 
   openStep("step-3");
   setStepStatus("step-3", "Running...");
-  document.getElementById("loader-3").style.display = "block";
-  document.getElementById("chars-container").style.display = "none";
+  show("#loader-3", true);
+  show("#chars-container", false);
 
   const summary = (currentPlotData.chapters || []).map((c) => `Ch${c.number}: ${c.summary}`).join("\n");
 
@@ -455,12 +378,12 @@ async function generateCharacters() {
     alert("Error generating characters");
     setStepStatus("step-3", "Error");
   } finally {
-    document.getElementById("loader-3").style.display = "none";
+    show("#loader-3", false);
   }
 }
 
 function renderCharacters(data) {
-  document.getElementById("chars-container").style.display = "block";
+  show("#chars-container", true);
 
   const createCard = (char) => `
     <div class="card" style="cursor:default;">
@@ -477,16 +400,13 @@ function renderCharacters(data) {
     </div>
   `;
 
-  document.getElementById("protagonists-grid").innerHTML =
-    (data.protagonists || []).map(createCard).join("");
-  document.getElementById("antagonists-grid").innerHTML =
-    (data.antagonists || []).map(createCard).join("");
-  document.getElementById("supporting-grid").innerHTML =
-    (data.supporting || []).map(createCard).join("");
+  $("#protagonists-grid").innerHTML = (data.protagonists || []).map(createCard).join("");
+  $("#antagonists-grid").innerHTML = (data.antagonists || []).map(createCard).join("");
+  $("#supporting-grid").innerHTML = (data.supporting || []).map(createCard).join("");
 }
 
 function wireCharacterDeleteDelegation() {
-  const container = document.getElementById("chars-container");
+  const container = $("#chars-container");
   if (!container) return;
 
   container.addEventListener("click", async (event) => {
@@ -518,29 +438,20 @@ function wireCharacterDeleteDelegation() {
   });
 }
 
-/* ---------------------------
-   STEP 4: CHAPTER PLAN
----------------------------- */
-
+/* ========= Step 4 ========= */
 async function planCurrentChapter() {
-  if (!currentPlotData || !currentPlotData.chapters || !currentPlotData.chapters.length) return;
-  if (!selectedData) return;
+  if (!currentPlotData?.chapters?.length || !selectedData) return;
 
   const ch = currentPlotData.chapters[currentChapter - 1];
   if (!ch) return;
 
   openStep("step-4", { scroll: false });
   setStepStatus("step-4", `Running (Ch ${currentChapter})...`);
+  show("#loader-4", true);
+  show("#beats-container", false);
 
-  const loader = document.getElementById("loader-4");
-  if (loader) loader.style.display = "block";
-
-  const container = document.getElementById("beats-container");
-  if (container) container.style.display = "none";
-
-  enableStep5Buttons(false);
+  setStep5Enabled(false);
   enableWriteIt(false);
-
   setChapterTitleDisplay();
 
   try {
@@ -559,21 +470,19 @@ async function planCurrentChapter() {
 
     currentBeats = data.beats || [];
 
-    // Keep plan/prose consistent: wipe chapter prose in DB after (re)planning (no popup)
+    // wipe prose for this chapter after planning (keeps plan/prose consistent)
     try {
       await fetchJSON("/api/beat/clear_from", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chapter: currentChapter, from_beat_index: 0 }),
       });
-    } catch (e) {
-      console.warn("Failed to clear prose after planning (non-fatal):", e);
-    }
+    } catch (_) {}
 
     beatTexts = {};
 
-    if (loader) loader.style.display = "none";
-    if (container) container.style.display = "block";
+    show("#loader-4", false);
+    show("#beats-container", true);
 
     renderBeats(currentBeats);
     renderWriteBeats(currentBeats, beatTexts);
@@ -581,7 +490,7 @@ async function planCurrentChapter() {
     setStepStatus("step-4", `Done (Ch ${currentChapter})`);
     setStepStatus("step-5", `Ready (Ch ${currentChapter})`);
 
-    enableStep5Buttons(true);
+    setStep5Enabled(true);
     enableWriteIt(true);
     updatePlanButtonUI();
 
@@ -591,24 +500,21 @@ async function planCurrentChapter() {
     alert("Error planning chapter");
     setStepStatus("step-4", "Error");
   } finally {
-    if (loader) loader.style.display = "none";
-    if (container) container.style.display = "block";
+    show("#loader-4", false);
+    show("#beats-container", true);
     updatePlanButtonUI();
   }
 }
 
 function renderBeats(beats) {
-  const bc = document.getElementById("beats-container");
-  if (bc) bc.style.display = "block";
-
-  const list = document.getElementById("beats-list");
+  show("#beats-container", true);
+  const list = $("#beats-list");
   if (!list) return;
 
   list.innerHTML = "";
-
   beats.forEach((beat) => {
-    let typeClass = "type-description";
     const t = (beat.type || "").toLowerCase();
+    let typeClass = "type-description";
     if (t.includes("dialogue")) typeClass = "type-dialogue";
     if (t.includes("action")) typeClass = "type-action";
     if (t.includes("monologue") || t.includes("internal")) typeClass = "type-internal";
@@ -622,16 +528,12 @@ function renderBeats(beats) {
   });
 }
 
-/* ---------------------------
-   STEP 5: WRITE BEATS (chapter-scoped)
----------------------------- */
-
+/* ========= Step 5 ========= */
 function renderWriteBeats(beats, textsByIdx) {
-  const wrap = document.getElementById("write-beats-list");
+  const wrap = $("#write-beats-list");
   if (!wrap) return;
 
   wrap.innerHTML = "";
-
   beats.forEach((beat, idx) => {
     const txt = textsByIdx?.[idx] || "";
     const isWritten = txt.trim().length > 0;
@@ -641,15 +543,10 @@ function renderWriteBeats(beats, textsByIdx) {
       <div class="beat-item" id="write-beat-row-${idx}">
         <div style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
           <div style="font-weight:700;">Beat ${idx + 1}</div>
-
           <div style="font-size:0.85rem; color:${isWritten ? "#16a34a" : "#64748b"};">
             ${isWritten ? "Written" : "Not written"}
           </div>
-
-          <button data-write-beat="${idx}" style="background:#6366f1;">
-            ${isWritten ? "Rewrite" : "Write"}
-          </button>
-
+          <button data-write-beat="${idx}" style="background:#6366f1;">${isWritten ? "Rewrite" : "Write"}</button>
           ${isWritten ? `<button data-clear-beat="${idx}" style="background:#ef4444;">Clear</button>` : ""}
           ${isWritten ? `<button data-clear-from="${idx}" style="background:#b91c1c;">Clear from here</button>` : ""}
         </div>
@@ -659,10 +556,7 @@ function renderWriteBeats(beats, textsByIdx) {
           <div style="margin-bottom:10px;">${beat.description}</div>
 
           <div style="margin-top:10px; border-top:1px solid #e2e8f0; padding-top:10px;">
-            <div style="font-weight:700; color:#334155; margin-bottom:6px;">
-              Generated text
-            </div>
-
+            <div style="font-weight:700; color:#334155; margin-bottom:6px;">Generated text</div>
             ${
               isWritten
                 ? `<pre id="beat-prose-${idx}" style="white-space:pre-wrap; margin:0; padding:10px; background:#0b1220; color:#e2e8f0; border-radius:8px;">${safeText}</pre>`
@@ -676,43 +570,29 @@ function renderWriteBeats(beats, textsByIdx) {
 }
 
 function wireWriteBeatDelegation() {
-  const wrap = document.getElementById("write-beats-list");
+  const wrap = $("#write-beats-list");
   if (!wrap) return;
 
   wrap.addEventListener("click", async (event) => {
     const clearBtn = event.target.closest("button[data-clear-beat]");
-    if (clearBtn) {
-      const idx = Number(clearBtn.getAttribute("data-clear-beat"));
-      if (Number.isNaN(idx)) return;
-      await clearBeat(idx);
-      return;
-    }
+    if (clearBtn) return clearBeat(Number(clearBtn.getAttribute("data-clear-beat")));
 
     const clearFromBtn = event.target.closest("button[data-clear-from]");
-    if (clearFromBtn) {
-      const idx = Number(clearFromBtn.getAttribute("data-clear-from"));
-      if (Number.isNaN(idx)) return;
-      await clearFrom(idx);
-      return;
-    }
+    if (clearFromBtn) return clearFrom(Number(clearFromBtn.getAttribute("data-clear-from")));
 
     const writeBtn = event.target.closest("button[data-write-beat]");
-    if (writeBtn) {
-      const idx = Number(writeBtn.getAttribute("data-write-beat"));
-      if (Number.isNaN(idx)) return;
+    if (!writeBtn) return;
 
-      const isRewrite = !!(beatTexts[idx] && beatTexts[idx].trim().length);
-      if (isRewrite) {
-        // auto-clear all NEXT beats (idx+1..) with no popup
-        await clearFrom(idx + 1);
-      }
-
-      await writeBeat(idx);
-    }
+    const idx = Number(writeBtn.getAttribute("data-write-beat"));
+    const isRewrite = !!(beatTexts[idx] && beatTexts[idx].trim().length);
+    if (isRewrite) await clearFrom(idx + 1);
+    await writeBeat(idx);
   });
 }
 
 async function clearBeat(idx) {
+  if (Number.isNaN(idx)) return;
+
   await disableWriteControls(true);
   try {
     await fetchJSON("/api/beat/clear", {
@@ -720,7 +600,6 @@ async function clearBeat(idx) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chapter: currentChapter, beat_index: idx }),
     });
-
     delete beatTexts[idx];
     renderWriteBeats(currentBeats, beatTexts);
     setStepStatus("step-5", `Beat ${idx + 1} cleared (Ch ${currentChapter})`);
@@ -733,6 +612,8 @@ async function clearBeat(idx) {
 }
 
 async function clearFrom(fromIdx) {
+  if (Number.isNaN(fromIdx)) return;
+
   await disableWriteControls(true);
   try {
     await fetchJSON("/api/beat/clear_from", {
@@ -757,40 +638,19 @@ async function clearFrom(fromIdx) {
 }
 
 async function clearAllBeats() {
-  if (!currentBeats || !currentBeats.length) return;
-
+  if (!currentBeats?.length) return;
   openStep("step-5", { scroll: false });
   setStepStatus("step-5", `Clearing all (Ch ${currentChapter})...`);
-
-  await disableWriteControls(true);
-  try {
-    await fetchJSON("/api/beat/clear_from", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chapter: currentChapter, from_beat_index: 0 }),
-    });
-
-    beatTexts = {};
-    renderWriteBeats(currentBeats, beatTexts);
-
-    setStepStatus("step-5", `Cleared all (Ch ${currentChapter})`);
-  } catch (e) {
-    console.error(e);
-    alert("Failed to clear all beats in DB");
-    setStepStatus("step-5", "Error");
-  } finally {
-    await disableWriteControls(false);
-  }
+  await clearFrom(0);
 }
 
 async function generateAllBeats() {
-  if (!currentBeats || !currentBeats.length) return;
+  if (!currentBeats?.length) return;
 
   openStep("step-5", { scroll: false });
 
   let start = firstUnwrittenIndex();
   if (start === null) {
-    // no popup: just clear and regenerate
     await clearAllBeats();
     start = 0;
   }
@@ -798,11 +658,11 @@ async function generateAllBeats() {
   await disableWriteControls(true);
   try {
     for (let i = start; i < currentBeats.length; i++) {
-      if (beatTexts[i] && beatTexts[i].trim().length) continue;
+      if (beatTexts[i]?.trim()) continue;
 
       setStepStatus("step-5", `Generating ${i + 1} / ${currentBeats.length} (Ch ${currentChapter})...`);
 
-      const proseEl = document.getElementById(`beat-prose-${i}`);
+      const proseEl = $(`#beat-prose-${i}`);
       if (proseEl) {
         proseEl.textContent = "(writing...)";
         proseEl.style.color = "#64748b";
@@ -810,11 +670,12 @@ async function generateAllBeats() {
       }
 
       const data = await fetchJSON(`/api/write_beat?chapter=${currentChapter}&beat_index=${i}`);
-      const text = data.text || "";
-
-      beatTexts[i] = text;
+      beatTexts[i] = data.text || "";
       renderWriteBeats(currentBeats, beatTexts);
     }
+
+    setStepStatus("step-5", `Saving continuity (Ch ${currentChapter})...`);
+    await buildChapterContinuity(currentChapter);
 
     setStepStatus("step-5", `Generate all done (Ch ${currentChapter})`);
   } catch (e) {
@@ -826,32 +687,15 @@ async function generateAllBeats() {
   }
 }
 
-async function disableWriteControls(disabled) {
-  enableStep5Buttons(!disabled);
-
-  const btnPrev = document.getElementById("btn-prev-chapter");
-  const btnNext = document.getElementById("btn-next-chapter");
-
-  if (btnPrev) btnPrev.disabled = disabled || !(totalChapters() > 0 && currentChapter > 1);
-  if (btnNext) btnNext.disabled = disabled || !(totalChapters() > 0 && currentChapter < totalChapters());
-
-  document.querySelectorAll("button[data-write-beat]").forEach((b) => (b.disabled = disabled));
-  document.querySelectorAll("button[data-clear-beat]").forEach((b) => (b.disabled = disabled));
-  document.querySelectorAll("button[data-clear-from]").forEach((b) => (b.disabled = disabled));
-}
-
 async function writeBeat(beatIndex) {
-  if (!currentBeats || !currentBeats.length) {
-    alert("No beats loaded. Run Step 4 first.");
-    return;
-  }
+  if (!currentBeats?.length) return;
 
   openStep("step-5", { scroll: false });
   setStepStatus("step-5", `Writing beat ${beatIndex + 1} (Ch ${currentChapter})...`);
 
   await disableWriteControls(true);
 
-  const proseEl = document.getElementById(`beat-prose-${beatIndex}`);
+  const proseEl = $(`#beat-prose-${beatIndex}`);
   if (proseEl) {
     proseEl.textContent = "(writing...)";
     proseEl.style.color = "#64748b";
@@ -860,10 +704,10 @@ async function writeBeat(beatIndex) {
 
   try {
     const data = await fetchJSON(`/api/write_beat?chapter=${currentChapter}&beat_index=${beatIndex}`);
-    const text = data.text || "";
-
-    beatTexts[beatIndex] = text;
+    beatTexts[beatIndex] = data.text || "";
     renderWriteBeats(currentBeats, beatTexts);
+
+    if (beatIndex === currentBeats.length - 1) await buildChapterContinuity(currentChapter);
 
     setStepStatus("step-5", `Beat ${beatIndex + 1} done (Ch ${currentChapter})`);
   } catch (e) {
@@ -876,10 +720,27 @@ async function writeBeat(beatIndex) {
 }
 
 async function writeNextBeat() {
-  if (!currentBeats || !currentBeats.length) return;
-
   const idx = firstUnwrittenIndex();
   if (idx === null) return;
-
   await writeBeat(idx);
+}
+
+async function disableWriteControls(disabled) {
+  setStep5Enabled(!disabled);
+  setChapterNavEnabled(!disabled);
+  $$("button[data-write-beat]").forEach((b) => (b.disabled = disabled));
+  $$("button[data-clear-beat]").forEach((b) => (b.disabled = disabled));
+  $$("button[data-clear-from]").forEach((b) => (b.disabled = disabled));
+}
+
+async function buildChapterContinuity(chapterNum) {
+  try {
+    await fetchJSON("/api/chapter/continuity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chapter: chapterNum }),
+    });
+  } catch (e) {
+    console.warn("Continuity build failed (non-fatal):", e);
+  }
 }

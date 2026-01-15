@@ -186,12 +186,31 @@ async def generate_chapter_plan(req: ChapterPlanRequest):
     else:
         characters_present = ", ".join([str(x) for x in req.characters])
 
+    if req.chapter > 1:
+        prev = req.chapter - 1
+        if not store.kv_get(f"ch{prev}_continuity"):
+            # best-effort build, ignore failures
+            try:
+                texts = await store.a_get_chapter_beat_texts_ordered(prev)
+                if texts:
+                    prompt = PROMPT_CHAPTER_CONTINUITY.format(chapter_prose="\n\n".join(texts))
+                    capsule = await call_llm_json(prompt, ChapterContinuity, temperature=0.2)
+                    await store.a_kv_set(f"ch{prev}_continuity", capsule.model_dump())
+            except Exception:
+                log.error("Failed to build previous chapter continuity")
+                pass
+
+    prev_cont = await store.a_get_prev_chapter_continuity(req.chapter)
+    prev_excerpt = await store.a_get_prev_chapter_ending_excerpt(req.chapter, max_chars=4500)
+
     prompt = PROMPT_CHAPTER_BEATS.format(
         title=req.title,
         genre=req.genre,
         chapter_title=req.chapter_title,
         chapter_summary=req.chapter_summary,
         characters_present=characters_present,
+        prev_chapter_continuity=prev_cont or "(none)",
+        prev_chapter_ending_excerpt=prev_excerpt or "(none)",
         hard_rules=HARD_RULES_GENERAL,
         hard_rules_consistency=HARD_RULES_NO_NEW_MAIN_CHARS,
         beats_min=CFG.BEATS_MIN,
@@ -252,6 +271,25 @@ async def write_beat(chapter: int = 1, beat_index: int = 0):
     payload = result.model_dump()
 
     await store.a_kv_set(f"ch{chapter}_beat_{beat_index}", {"beat_index": beat_index, **payload})
+    return payload
+
+
+@app.post("/api/chapter/continuity")
+async def build_chapter_continuity(req: BuildContinuityRequest):
+    texts = await store.a_get_chapter_beat_texts_ordered(req.chapter)
+    prose = "\n\n".join(texts).strip()
+
+    if not prose:
+        empty = ChapterContinuity(bullets=[])
+        await store.a_kv_set(f"ch{req.chapter}_continuity", empty.model_dump())
+        return empty.model_dump()
+
+    prompt = PROMPT_CHAPTER_CONTINUITY.format(chapter_prose=prose)
+
+    capsule: ChapterContinuity = await call_llm_json(prompt, ChapterContinuity, temperature=0.2)
+
+    payload = capsule.model_dump()
+    await store.a_kv_set(f"ch{req.chapter}_continuity", payload)
     return payload
 
 

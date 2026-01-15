@@ -79,6 +79,15 @@ class MemoryStore:
     async def a_clear_beat_texts_from(self, chapter: int, from_beat_index: int) -> None:
         await anyio.to_thread.run_sync(self.clear_beat_texts_from, chapter, from_beat_index)
 
+    async def a_get_prev_chapter_continuity(self, chapter: int) -> Optional[str]:
+        return await anyio.to_thread.run_sync(self.get_prev_chapter_continuity, chapter)
+
+    async def a_get_prev_chapter_ending_excerpt(self, chapter: int, max_chars: int = 4500) -> Optional[str]:
+        return await anyio.to_thread.run_sync(self.get_prev_chapter_ending_excerpt, chapter, max_chars)
+
+    async def a_get_chapter_beat_texts_ordered(self, chapter: int) -> List[str]:
+        return await anyio.to_thread.run_sync(self.get_chapter_beat_texts_ordered, chapter)
+
     # -------------------------
     # Sync implementation
     # -------------------------
@@ -257,3 +266,107 @@ class MemoryStore:
             if keys_to_delete:
                 con.executemany("DELETE FROM kv WHERE key = ?", keys_to_delete)
             con.commit()
+
+    def get_prev_chapter_continuity(self, chapter: int) -> Optional[str]:
+        """
+        Returns continuity capsule for chapter-1, stored under:
+          ch{prev}_continuity  -> {"bullets": [...]} or {"text": "..."} or raw string
+        """
+        prev = chapter - 1
+        if prev < 1:
+            return None
+
+        obj = self.kv_get(f"ch{prev}_continuity")
+        if obj is None:
+            return None
+
+        # accept a few formats
+        if isinstance(obj, str):
+            return obj
+
+        if isinstance(obj, dict):
+            if isinstance(obj.get("text"), str):
+                return obj["text"]
+            bullets = obj.get("bullets")
+            if isinstance(bullets, list):
+                bullets = [b for b in bullets if isinstance(b, str) and b.strip()]
+                if bullets:
+                    return "\n".join(f"- {b.strip()}" for b in bullets)
+
+        return None
+
+    def get_prev_chapter_ending_excerpt(self, chapter: int, max_chars: int = 4500) -> Optional[str]:
+        """
+        Returns tail excerpt from previous chapter prose:
+          ch{prev}_beat_{i} values are JSON with {"text": "..."}.
+        We concatenate last 1-2 beats (if present) and slice tail.
+        """
+        prev = chapter - 1
+        if prev < 1:
+            return None
+
+        # find max beat index that exists for prev chapter
+        prefix = f"ch{prev}_beat_"
+        like_pat = prefix + "%"
+
+        with sqlite3.connect(self.db_path) as con:
+            rows = con.execute("SELECT key, json FROM kv WHERE key LIKE ?", (like_pat,)).fetchall()
+
+        if not rows:
+            return None
+
+        parsed: list[tuple[int, str]] = []
+        for key, raw in rows:
+            try:
+                idx = int(key.replace(prefix, ""))
+                obj = json.loads(raw)
+                txt = obj.get("text") if isinstance(obj, dict) else None
+                if isinstance(txt, str) and txt.strip():
+                    parsed.append((idx, txt))
+            except Exception:
+                continue
+
+        if not parsed:
+            return None
+
+        parsed.sort(key=lambda x: x[0])
+        last_idx = parsed[-1][0]
+
+        # take last 2 beats if available
+        texts = []
+        for idx in (last_idx - 1, last_idx):
+            for j, t in parsed:
+                if j == idx:
+                    texts.append(t)
+                    break
+
+        merged = "\n\n".join(texts).strip()
+        if not merged:
+            return None
+
+        # slice tail (last N chars) [web:492]
+        if len(merged) > max_chars:
+            merged = merged[-max_chars:]
+
+        return merged
+
+    def get_chapter_beat_texts_ordered(self, chapter: int) -> List[str]:
+        prefix = f"ch{chapter}_beat_"
+        like_pat = prefix + "%"
+
+        with sqlite3.connect(self.db_path) as con:
+            rows = con.execute("SELECT key, json FROM kv WHERE key LIKE ?", (like_pat,)).fetchall()
+
+        parsed: List[Tuple[int, str]] = []
+        for key, raw in rows:
+            try:
+                idx = int(key.replace(prefix, ""))
+                obj = json.loads(raw)
+                txt = obj.get("text") if isinstance(obj, dict) else None
+                if isinstance(txt, str) and txt.strip():
+                    parsed.append((idx, txt))
+            except Exception:
+                continue
+
+        parsed.sort(key=lambda x: x[0])
+        return [t for _, t in parsed]
