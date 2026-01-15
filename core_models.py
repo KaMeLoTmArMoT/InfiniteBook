@@ -17,6 +17,7 @@ class AppConfig(BaseSettings):
 
     # Model
     MODEL_NAME: str = "llama3.1:8b"
+    # MODEL_NAME: str = "gemma2:9b"
 
     # Generation sizes
     REFINE_VARIATIONS: int = 5  # UI total will be +1 original
@@ -38,6 +39,8 @@ class AppConfig(BaseSettings):
     TEMP_PLOT: float = 0.70
     TEMP_CHARACTERS: float = 0.75
     TEMP_BEATS: float = 0.70
+    TEMP_PROSE: float = 0.70
+
     LLM_MAX_RETRIES: int = 1
 
     # Monitoring
@@ -52,6 +55,7 @@ Hard rules:
 - Output must follow the requested format only.
 - Do not add extra keys or commentary outside the format.
 - Keep naming consistent across steps.
+- Show, Don't Tell: Focus on physical actions and sensory details, not abstract feelings.
 """
 
 HARD_RULES_NO_NEW_MAIN_CHARS = """\
@@ -170,6 +174,7 @@ Idea: {idea}
 Guidance:
 - Range: Classic -> Unexpected.
 - Each variation should be a compelling book blurb.
+- Highlight the central conflict and specific stakes (what happens if they fail?).
 - Keep it concise, punchy, and coherent.
 
 {hard_rules}
@@ -191,6 +196,11 @@ Structure requirements:
 - Follow: Setup -> Inciting Incident -> Rising Action -> Climax -> Resolution.
 - Each chapter must have: number, title, summary.
 
+CRITICAL PLOT RULES:
+- Continuous Narrative: This is ONE continuous story, not an anthology. 
+- The protagonist(s) introduced in Chapter 1 must be the focus of Chapter 2, 3, etc.
+- Cause and Effect: The events of Chapter X must directly cause the events of Chapter X+1.
+
 {hard_rules}
 
 Return JSON only that matches the schema.
@@ -206,9 +216,9 @@ Plot context:
 {plot_summary}
 
 Requirements:
-- {prot_min}-{prot_max} protagonists with clear goal + flaw in the bio.
+- {prot_min}-{prot_max} protagonists. Include: Goal, Flaw, and a specific physical mannerism/tic.
 - {ant_min} antagonist with a clear opposing goal.
-- {side_min}-{side_max} supporting characters essential to plot progression.
+- {side_min}-{side_max} supporting characters. Include: Relationship to protagonist.
 - No duplicate names.
 
 {hard_rules}
@@ -230,6 +240,7 @@ Requirements:
 - Produce {beats_min}-{beats_max} beats.
 - Mix pacing: Dialogue, Action, Description, Internal Monologue.
 - Cause -> effect progression across beats.
+- STAGE BUSINESS: Ensure characters are doing physical tasks while interacting. No "talking heads" in a void.
 
 {hard_rules}
 {hard_rules_consistency}
@@ -245,7 +256,7 @@ Task: Write the prose for the CURRENT beat of the chapter.
 Context (previous beats descriptions):
 {prev_beats}
 
-Context (tail of previously written prose; may be empty):
+Context (tail of previously written prose - use this to determine FLOW):
 \"\"\"{prev_text}\"\"\"
 
 CURRENT beat (Beat {beat_number}, {beat_type}):
@@ -253,10 +264,25 @@ CURRENT beat (Beat {beat_number}, {beat_type}):
 
 Writing requirements:
 - 2-6 paragraphs.
-- Keep continuity with the context.
+- CONTINUITY: The first sentence must logically and grammatically follow the last sentence of the 'prev_text'.
+- ACTIVE VOICE: Focus on what is happening NOW. 
+- SHOW, DON'T TELL: Use sensory details.
+
+CRITICAL "SENTENCE ATTACK" RULES:
+1. DO NOT start the first sentence with a Character Name (e.g., "Maya...", "Lex...").
+2. DO NOT start the first sentence with a Pronoun (e.g., "She...", "He...").
+3. DO NOT summarize the previous action. (e.g., if the last chunk was 'she sat down', do not start with 'Sitting in the chair...').
+4. Start with:
+   - A sensory detail ("The smell of ozone...")
+   - A reaction ("Suddenly, the screen flickered...")
+   - Dialogue ("Wait," she whispered...)
+   - A prepositional phrase ("Under the desk...")
+   - An action verb ("Slamming the laptop shut...")
+
+STYLE RESTRICTIONS:
+- No clichés.
+- No navel-gazing.
 - Do not rename characters.
-- Do not introduce new main characters.
-- No headings, no bullet points, no markdown.
 
 IMPORTANT OUTPUT FORMAT:
 Return JSON ONLY matching the schema:
