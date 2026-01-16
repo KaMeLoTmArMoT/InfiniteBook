@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Book Reader</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#101a30;
+      --text:#e2e8f0;
+      --muted:#94a3b8;
+      --line:#22314f;
+      --accent:#6366f1;
+      --good:#16a34a;
+      --bad:#ef4444;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    }
+
+    body{
+      margin:0;
+      font-family:var(--sans);
+      background:linear-gradient(180deg, var(--bg), #070b14);
+      color:var(--text);
+    }
+
+    .wrap{
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    header{
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
+      flex-wrap:wrap;
+      padding: 14px 16px;
+      background: rgba(16, 26, 48, 0.75);
+      border:1px solid rgba(148,163,184,0.18);
+      border-radius: 12px;
+      position: sticky;
+      top: 10px;
+      backdrop-filter: blur(8px);
+      z-index: 2;
+    }
+
+    .title{
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+      min-width: 240px;
+    }
+    .title h1{
+      font-size: 16px;
+      margin:0;
+      letter-spacing: 0.2px;
+    }
+    .title .sub{
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .controls{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    button{
+      background: rgba(99,102,241,0.18);
+      border: 1px solid rgba(99,102,241,0.5);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    button:disabled{
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    button.secondary{
+      background: rgba(148,163,184,0.14);
+      border-color: rgba(148,163,184,0.35);
+    }
+
+    select{
+      background: rgba(16,26,48,0.85);
+      border: 1px solid rgba(148,163,184,0.35);
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 10px;
+      outline: none;
+      font-weight: 600;
+    }
+
+    .status{
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .chapter{
+      margin-top: 14px;
+      background: rgba(16, 26, 48, 0.55);
+      border:1px solid rgba(148,163,184,0.18);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .chapter-head{
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(148,163,184,0.12);
+      display:flex;
+      gap: 10px;
+      align-items: baseline;
+      flex-wrap:wrap;
+    }
+    .chapter-head .ch-no{
+      font-weight: 800;
+      color: #c7d2fe;
+    }
+    .chapter-head .ch-title{
+      font-weight: 800;
+    }
+    .chapter-head .ch-meta{
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .beats{
+      padding: 16px;
+    }
+
+    .beat{
+      padding: 14px 14px 16px;
+      background: rgba(11,18,32,0.45);
+      border: 1px solid rgba(148,163,184,0.14);
+      border-radius: 12px;
+      margin-bottom: 14px;
+    }
+
+    .beat-top{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      align-items:flex-start;
+      flex-wrap:wrap;
+      margin-bottom: 10px;
+    }
+
+    .beat-label{
+      font-weight: 800;
+    }
+
+    .beat-type{
+      font-size: 12px;
+      color: var(--muted);
+      border: 1px solid rgba(148,163,184,0.22);
+      border-radius: 999px;
+      padding: 4px 8px;
+      background: rgba(148,163,184,0.08);
+      max-width: 100%;
+    }
+
+    .beat-desc{
+      color: #cbd5e1;
+      font-size: 13px;
+      margin: 8px 0 0;
+      white-space: pre-wrap;
+    }
+
+    .divider{
+      height: 1px;
+      background: rgba(148,163,184,0.14);
+      margin: 14px 0;
+      position: relative;
+    }
+    .divider::after{
+      content: "◆";
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      top: -10px;
+      font-size: 12px;
+      color: rgba(148,163,184,0.6);
+      background: rgba(11,18,32,0.9);
+      padding: 0 8px;
+    }
+
+    pre.prose{
+      margin: 0;
+      font-family: var(--mono);
+      background: rgba(7,11,20,0.8);
+      border: 1px solid rgba(148,163,184,0.14);
+      border-radius: 10px;
+      padding: 12px;
+      white-space: pre-wrap;
+      line-height: 1.45;
+      color: var(--text);
+    }
+
+    .empty{
+      color: var(--muted);
+      font-style: italic;
+      padding: 10px 0 0;
+    }
+
+    .err{
+      margin-top: 14px;
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(239,68,68,0.14);
+      border: 1px solid rgba(239,68,68,0.35);
+      color: #fecaca;
+      white-space: pre-wrap;
+      font-family: var(--mono);
+      display:none;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <header>
+      <div class="title">
+        <h1>Generated Text Viewer</h1>
+        <div class="sub">Shows chapter names and beat-separated prose (loaded from /api/state)</div>
+      </div>
+
+      <div class="controls">
+        <button id="btn-prev" class="secondary">◀ Prev</button>
+        <select id="chapter-select"></select>
+        <button id="btn-next" class="secondary">Next ▶</button>
+        <button id="btn-reload">Reload</button>
+      </div>
+    </header>
+
+    <div class="status" id="status">Idle.</div>
+    <div class="err" id="err"></div>
+
+    <div class="chapter" id="chapter-card" style="display:none;">
+      <div class="chapter-head">
+        <div class="ch-no" id="ch-no"></div>
+        <div class="ch-title" id="ch-title"></div>
+        <div class="ch-meta" id="ch-meta"></div>
+      </div>
+      <div class="beats" id="beats"></div>
+    </div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    let plot = null;
+    let currentChapter = 1;
+    let total = 1;
+
+    function setStatus(msg){ $("status").textContent = msg; }
+    function showErr(msg){
+      const el = $("err");
+      el.style.display = msg ? "block" : "none";
+      el.textContent = msg || "";
+    }
+
+    async function fetchJSON(url, opts){
+      const r = await fetch(url, opts);
+      if (!r.ok) throw new Error(`${r.status} ${r.statusText} for ${url}`);
+      return await r.json();
+    }
+
+    function escapeHTML(s){
+      return String(s || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function normBeatTexts(obj){
+      const out = {};
+      for (const [k, v] of Object.entries(obj || {})){
+        const idx = Number(k);
+        if (!Number.isNaN(idx) && typeof v === "string") out[idx] = v;
+      }
+      return out;
+    }
+
+    function setNavButtons(){
+      $("btn-prev").disabled = currentChapter <= 1;
+      $("btn-next").disabled = currentChapter >= total;
+    }
+
+    function fillChapterSelect(){
+      const sel = $("chapter-select");
+      sel.innerHTML = "";
+      for (let i = 1; i <= total; i++){
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = `Chapter ${i}`;
+        sel.appendChild(opt);
+      }
+      sel.value = String(currentChapter);
+    }
+
+    function chapterTitleFromPlot(chNum){
+      const ch = plot?.chapters?.[chNum - 1];
+      return ch?.title || "";
+    }
+
+    function chapterSummaryFromPlot(chNum){
+      const ch = plot?.chapters?.[chNum - 1];
+      return ch?.summary || "";
+    }
+
+    function renderChapter({chapter, beatsPlan, beatTexts}){
+      $("chapter-card").style.display = "block";
+      $("ch-no").textContent = `Ch ${chapter}:`;
+      $("ch-title").textContent = chapterTitleFromPlot(chapter) || "(untitled)";
+      $("ch-meta").textContent = chapterSummaryFromPlot(chapter) ? `Outline: ${chapterSummaryFromPlot(chapter)}` : "";
+
+      const wrap = $("beats");
+      wrap.innerHTML = "";
+
+      const beats = beatsPlan?.beats || [];
+      if (!beats.length){
+        wrap.innerHTML = `<div class="empty">No beats plan for this chapter yet.</div>`;
+        return;
+      }
+
+      beats.forEach((b, idx) => {
+        const prose = (beatTexts[idx] || "").trim();
+        const proseHtml = prose
+          ? `<pre class="prose">${escapeHTML(prose)}</pre>`
+          : `<div class="empty">(Beat not written yet)</div>`;
+
+        const beatHtml = `
+          <div class="beat">
+            <div class="beat-top">
+              <div class="beat-label">Beat ${idx + 1}</div>
+              <div class="beat-type">${escapeHTML(b.type || "")}</div>
+            </div>
+            <div class="beat-desc">${escapeHTML(b.description || "")}</div>
+            <div class="divider"></div>
+            ${proseHtml}
+          </div>
+        `;
+
+        wrap.insertAdjacentHTML("beforeend", beatHtml);
+      });
+    }
+
+    async function loadChapter(chNum){
+      showErr("");
+      setStatus(`Loading chapter ${chNum}...`);
+
+      const st = await fetchJSON(`/api/state?chapter=${chNum}`);
+      if (st.plot) {
+        plot = st.plot;
+        total = plot?.chapters?.length || total;
+      }
+
+      currentChapter = chNum;
+      fillChapterSelect();
+      setNavButtons();
+
+      const beatsPlan = st.beats || null;
+      const beatTexts = normBeatTexts(st.beat_texts || {});
+      renderChapter({chapter: chNum, beatsPlan, beatTexts});
+
+      const written = Object.keys(beatTexts).length;
+      const planned = beatsPlan?.beats?.length || 0;
+      setStatus(`Ch ${chNum} loaded. Planned beats: ${planned}. Written beats: ${written}.`);
+    }
+
+    async function init(){
+      try{
+        // bootstrap: use chapter 1 state to discover total chapters (via plot)
+        const st1 = await fetchJSON(`/api/state?chapter=1`);
+        plot = st1.plot || null;
+        total = plot?.chapters?.length || 1;
+
+        fillChapterSelect();
+        setNavButtons();
+
+        await loadChapter(1);
+      } catch(e){
+        showErr(String(e?.stack || e));
+        setStatus("Failed to load.");
+      }
+    }
+
+    $("btn-prev").addEventListener("click", () => {
+      if (currentChapter > 1) loadChapter(currentChapter - 1);
+    });
+
+    $("btn-next").addEventListener("click", () => {
+      if (currentChapter < total) loadChapter(currentChapter + 1);
+    });
+
+    $("btn-reload").addEventListener("click", () => loadChapter(currentChapter));
+
+    $("chapter-select").addEventListener("change", (e) => {
+      const n = Number(e.target.value);
+      if (!Number.isNaN(n)) loadChapter(n);
+    });
+
+    init();
+  </script>
+</body>
+</html>

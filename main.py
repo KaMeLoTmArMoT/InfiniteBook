@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import RedirectResponse
 import asyncio
 from fastapi import WebSocket, WebSocketDisconnect
 from ollama import AsyncClient
@@ -45,6 +46,7 @@ async def call_llm_json(
         )
 
         raw = resp["message"]["content"]
+        log_ollama_usage(log, f"LLM_CALL_ATTEMPT_{attempt}", resp)
         log.debug(f"LLM RAW OUTPUT (attempt={attempt}):\n{raw}\n" + "=" * 60)
 
         # Best path: validate directly from JSON string
@@ -83,6 +85,10 @@ async def home(request: Request):
 @app.get("/api/state")
 async def api_state(chapter: int = 1):
     return await store.a_load_state(chapter=chapter)
+
+@app.get("/reader", response_class=HTMLResponse, include_in_schema=False)
+async def reader(request: Request):
+    return templates.TemplateResponse("reader.html", {"request": request})
 
 
 @app.delete("/api/characters/{char_id}")

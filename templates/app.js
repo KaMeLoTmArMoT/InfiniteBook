@@ -46,6 +46,9 @@ document.addEventListener("DOMContentLoaded", () => {
   on("#btn-clear-all", "click", clearAllBeats);
   on("#btn-generate-all", "click", generateAllBeats);
 
+  on("#btn-prev-chapter-step4", "click", () => gotoChapter(currentChapter - 1));
+  on("#btn-next-chapter-step4", "click", () => gotoChapter(currentChapter + 1));
+
   on("#btn-prev-chapter", "click", () => gotoChapter(currentChapter - 1));
   on("#btn-next-chapter", "click", () => gotoChapter(currentChapter + 1));
 
@@ -85,8 +88,13 @@ function setStep5Enabled(enabled) {
 
 function setChapterNavEnabled(enabled) {
   const total = totalChapters();
-  setDisabled("#btn-prev-chapter", !(enabled && total > 0 && currentChapter > 1));
-  setDisabled("#btn-next-chapter", !(enabled && total > 0 && currentChapter < total));
+  const canPrev = enabled && total > 0 && currentChapter > 1;
+  const canNext = enabled && total > 0 && currentChapter < total;
+
+  setDisabled("#btn-prev-chapter", !canPrev);
+  setDisabled("#btn-next-chapter", !canNext);
+  setDisabled("#btn-prev-chapter-step4", !canPrev);
+  setDisabled("#btn-next-chapter-step4", !canNext);
 }
 
 function enableWriteIt(enabled) {

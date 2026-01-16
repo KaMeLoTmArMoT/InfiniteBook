@@ -55,3 +55,13 @@ async def check_ollama_status():
         return {"status": "online", "model_count": len(models['models'])}
     except:
         return {"status": "offline", "model_count": 0}
+
+
+def log_ollama_usage(log, tag: str, resp: dict) -> None:
+    p = resp.get("prompt_eval_count")
+    r = resp.get("eval_count")
+
+    if p is None and r is None:
+        return
+
+    log.info(f"[ollama] {tag} prompt_eval_count={p} eval_count={r}")

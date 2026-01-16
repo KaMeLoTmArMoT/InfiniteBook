@@ -117,6 +117,9 @@ Write the prose for **Beat {beat_number}** ({beat_type}).
 **PREVIOUS TEXT (Already Written):**
 \"\"\"{prev_text}\"\"\"
 
+**PREVIOUS BEATS (Already Used for previous chunks):**
+\"\"\"{prev_beats}\"\"\"
+
 **CURRENT BEAT PLAN:**
 {beat_description}
 
@@ -130,10 +133,10 @@ Write the prose for **Beat {beat_number}** ({beat_type}).
 2.  **SENTENCE ATTACK (VARY STARTS):**
     * **BANNED:** Do NOT start the first sentence with a Proper Name (e.g., "Arin...") or Pronoun ("He...").
     * **REQUIRED:** Start the first sentence with:
-        * A sound ("The click of the safety...")
-        * A smell ("Ozone hung heavy...")
-        * A physical sensation ("Cold metal pressed against...")
-        * Dialogue ("'Get down,' he hissed...")
+        * A sound
+        * A smell
+        * A physical sensation
+        * Dialogue
 
 3.  **NEGATIVE CONSTRAINTS (BANNED WORDS):**
     * **Strictly forbidden:** "shiver down spine", "air thickened", "unseen hand", "cacophony", "labyrinthine", "neon" (use specific colors instead), "pulsing energy", "moths to a flame".
