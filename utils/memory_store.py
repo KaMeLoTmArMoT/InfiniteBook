@@ -88,6 +88,9 @@ class MemoryStore:
     async def a_get_chapter_beat_texts_ordered(self, chapter: int) -> List[str]:
         return await anyio.to_thread.run_sync(self.get_chapter_beat_texts_ordered, chapter)
 
+    async def a_get_last_written_beat_text(self, chapter: int) -> str:
+        return await anyio.to_thread.run_sync(self.get_last_written_beat_text, chapter)
+
     # -------------------------
     # Sync implementation
     # -------------------------
@@ -370,3 +373,38 @@ class MemoryStore:
 
         parsed.sort(key=lambda x: x[0])
         return [t for _, t in parsed]
+
+    def get_last_written_beat_text(self, chapter: int) -> str:
+        prefix = f"ch{chapter}_beat_"
+        like_pat = prefix + "%"
+
+        with sqlite3.connect(self.db_path) as con:
+            rows = con.execute(
+                "SELECT key, json FROM kv WHERE key LIKE ?",
+                (like_pat,),
+            ).fetchall()
+
+        best_i = None
+        best_text = ""
+
+        for key, raw in rows:
+            if not isinstance(key, str) or not key.startswith(prefix):
+                continue
+            try:
+                i = int(key[len(prefix):])
+            except Exception:
+                continue
+            try:
+                obj = json.loads(raw)
+            except Exception:
+                continue
+
+            txt = obj.get("text") if isinstance(obj, dict) else None
+            if not isinstance(txt, str) or not txt.strip():
+                continue
+
+            if best_i is None or i > best_i:
+                best_i = i
+                best_text = txt
+
+        return best_text

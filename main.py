@@ -13,6 +13,7 @@ from utils.core_models import *
 from utils.prompts import *
 from utils.utils import *
 from utils.memory_store import MemoryStore
+from utils.utils import _tail_chars, _build_write_context
 
 app = FastAPI()
 ollama_client = AsyncClient()
@@ -85,6 +86,7 @@ async def home(request: Request):
 @app.get("/api/state")
 async def api_state(chapter: int = 1):
     return await store.a_load_state(chapter=chapter)
+
 
 @app.get("/reader", response_class=HTMLResponse, include_in_schema=False)
 async def reader(request: Request):
@@ -231,12 +233,6 @@ async def generate_chapter_plan(req: ChapterPlanRequest):
     return payload
 
 
-def _tail_chars(text: str, approx_tokens: int = 400) -> str:
-    # Simple heuristic: ~4 chars per token for English-ish text
-    n = approx_tokens * 4
-    return text[-n:] if text else ""
-
-
 @app.get("/api/write_beat")
 async def write_beat(chapter: int = 1, beat_index: int = 0):
     log.info(f"Step 5: Writing beat text. Chapter={chapter}, beat_index={beat_index}")
@@ -249,24 +245,15 @@ async def write_beat(chapter: int = 1, beat_index: int = 0):
     if beat_index < 0 or beat_index >= len(beats):
         return {"error": "Invalid beat_index"}
 
-    # Up to 4 previous beats descriptions
-    prev_lines = []
-    for i in range(max(0, beat_index - 4), beat_index):
-        b = beats[i]
-        prev_lines.append(f"- Beat {i + 1} ({b.get('type', '')}): {b.get('description', '')}")
-    prev_beats = "\n".join(prev_lines) if prev_lines else "- (none)"
-
-    # Tail of previous generated prose (only previous beat)
-    prev_text = ""
-    if beat_index > 0:
-        prev_payload = await store.a_kv_get(f"ch{chapter}_beat_{beat_index - 1}")
-        if prev_payload and "text" in prev_payload:
-            prev_text = _tail_chars(prev_payload["text"], approx_tokens=400)
+    ctx = await _build_write_context(store, chapter, beat_index, beats)
 
     cur = beats[beat_index]
     prompt = PROMPT_WRITE_BEAT.format(
-        prev_beats=prev_beats,
-        prev_text=prev_text,
+        prev_text=ctx["prev_text"],
+        prev_beats=ctx["prev_beats"],
+        prev_chapter_note=ctx["prev_chapter_note"],
+        prev_chapter_capsule=ctx["prev_chapter_capsule"],
+        prev_chapter_ending=ctx["prev_chapter_ending"],
         beat_number=beat_index + 1,
         beat_type=cur.get("type", ""),
         beat_description=cur.get("description", ""),

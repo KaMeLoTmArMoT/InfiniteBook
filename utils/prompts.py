@@ -120,6 +120,16 @@ Write the prose for **Beat {beat_number}** ({beat_type}).
 **PREVIOUS BEATS (Already Used for previous chunks):**
 \"\"\"{prev_beats}\"\"\"
 
+### CONTEXT (PREVIOUS CHAPTER — FOR CONTINUITY ONLY)
+NOTE: The following context (if present) is from the PREVIOUS CHAPTER. It is NOT part of the current chapter plan.
+When continuing a story across chapters, continuity must be preserved unless the current chapter plan clearly implies a time jump.
+
+**PREVIOUS CHAPTER CONTINUITY CAPSULE (facts + open threads):**
+\"\"\"{prev_chapter_capsule}\"\"\"
+
+**PREVIOUS CHAPTER ENDING EXCERPT (tail of previous chapter prose):**
+\"\"\"{prev_chapter_ending}\"\"\"
+
 **CURRENT BEAT PLAN:**
 {beat_description}
 
