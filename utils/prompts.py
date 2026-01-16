@@ -155,6 +155,19 @@ When continuing a story across chapters, continuity must be preserved unless the
 4.  **STAGE BUSINESS:**
     * Characters must **DO** things while talking (lighting a cigarette, checking a weapon, cleaning glasses). No "talking heads" in a void.
 
+### PACING + LENGTH (HUMAN MIX)
+- Write for a TikTok-friendly reading experience: compact, high-signal prose.
+- Choose ONE length mode based on what the beat *needs* (do not announce the mode):
+  * Micro: 70–120 words (fast punch-in)
+  * Standard: 130–220 words (default)
+  * Extended: 230–320 words (only if the beat has multiple moves or emotional turn)
+- Vary paragraphing: 1–4 paragraphs. Mix short and long sentences; allow fragments.
+
+### DIALOGUE BEHAVIOR
+- If this beat is Dialogue-heavy: include 3–8 separate dialogue lines with interruptions, overlaps, and subtext.
+- Otherwise: optionally inject 1–3 quick lines of dialogue if it improves realism.
+- Dialogue must be grounded with physical action (stage business) while speaking.
+
 ### OUTPUT FORMAT
 Return JSON ONLY. No markdown, no pre-text.
 {{"text": "..."}}

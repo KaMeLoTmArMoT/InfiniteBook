@@ -1,3 +1,4 @@
+import hashlib
 import json
 import re
 
@@ -66,17 +67,19 @@ def log_ollama_usage(log, tag: str, resp: dict) -> None:
 
     log.info(f"[ollama] {tag} prompt_eval_count={p} eval_count={r}")
 
+
 def _tail_chars(text: str, approx_tokens: int = 400) -> str:
     # Simple heuristic: ~4 chars per token for English-ish text
     n = approx_tokens * 4
     return text[-n:] if text else ""
+
 
 def _fmt_prev_beats(beats: list[dict], beat_index: int, lookback: int = 4) -> str:
     start = max(0, beat_index - lookback)
     lines = []
     for i in range(start, beat_index):
         b = beats[i]
-        lines.append(f"- Beat {i + 1} ({b.get('type','')}): {b.get('description','')}")
+        lines.append(f"- Beat {i + 1} ({b.get('type', '')}): {b.get('description', '')}")
     return "\n".join(lines) if lines else "- (none)"
 
 
@@ -118,4 +121,45 @@ async def _build_write_context(store, chapter: int, beat_index: int, beats: list
         "prev_chapter_note": f"NOTE: The following context is from the PREVIOUS CHAPTER (Ch {prev_ch}).",
         "prev_chapter_capsule": capsule_txt or "(none)",
         "prev_chapter_ending": ending_tail or "(none)",
+    }
+
+
+def _stable_seed(*parts) -> int:
+    s = "|".join(str(p) for p in parts)
+    h = hashlib.blake2b(s.encode("utf-8"), digest_size=4).digest()
+    return int.from_bytes(h, "big")
+
+
+def pick_num_predict(beat_type: str) -> int:
+    t = (beat_type or "").lower()
+    base = 220
+    if "action" in t:
+        base = 180
+    if "dialogue" in t:
+        base = 260
+    if "internal" in t or "monologue" in t:
+        base = 240
+
+    # deterministic “jitter” (reproducible per beat if you pass seed)
+    return max(120, min(420, base))
+
+
+def beat_generation_options(*, beat_type: str, chapter: int, beat_index: int) -> dict:
+    # deterministic seed so reruns keep similar length/feel
+    seed = _stable_seed("write_beat", chapter, beat_index, beat_type)
+
+    # small jitter derived from seed (no random module needed)
+    jitter = (seed % 141) - 60  # [-60..80]
+    num_predict = max(120, min(420, pick_num_predict(beat_type) + jitter))
+
+    # “human-ish” but still controlled
+    return {
+        "num_predict": num_predict,
+        "top_p": 0.9,
+        "top_k": 30,
+        "typical_p": 0.7,
+        "repeat_penalty": 1.12,
+        "presence_penalty": 0.3,
+        "frequency_penalty": 0.2,
+        # "seed": seed,  # TODO: do not use for now
     }

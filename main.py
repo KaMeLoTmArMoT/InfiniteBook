@@ -29,9 +29,9 @@ async def call_llm_json(
         response_model: type[BaseModel],
         temperature: float,
         max_retries: int = CFG.LLM_MAX_RETRIES,
+        options_extra: dict | None = None,
 ) -> BaseModel:
     schema = response_model.model_json_schema()
-
     last_error: Exception | None = None
 
     for attempt in range(max_retries + 1):
@@ -39,24 +39,27 @@ async def call_llm_json(
         if attempt > 0:
             extra = "\nIMPORTANT: Return ONLY valid JSON matching the schema. No prose. No markdown."
 
+        options = {"temperature": temperature}
+        if options_extra:
+            options.update(options_extra)  # allow per-call overrides like num_predict/top_p/etc.
+
         resp = await ollama_client.chat(
             model=CFG.MODEL_NAME,
             messages=[{"role": "user", "content": prompt + extra}],
-            options={"temperature": temperature},
+            options=options,
             format=schema,
         )
 
         raw = resp["message"]["content"]
         log_ollama_usage(log, f"LLM_CALL_ATTEMPT_{attempt}", resp)
         log.debug(f"LLM RAW OUTPUT (attempt={attempt}):\n{raw}\n" + "=" * 60)
+        log.debug(f"LLM OPTIONS USED: {options}")
 
-        # Best path: validate directly from JSON string
         try:
             return response_model.model_validate_json(raw)
         except Exception as e:
             last_error = e
 
-        # Fallback: extract JSON then validate
         data = clean_json_response(raw)
         if data is None:
             last_error = ValueError("Failed to parse JSON from model output")
@@ -261,7 +264,15 @@ async def write_beat(chapter: int = 1, beat_index: int = 0):
 
     log.debug(f"\n{'=' * 20} PROMPT WRITE BEAT (Chapter={chapter}, Beat={beat_index}) {'=' * 20}\n{prompt}\n{'=' * 60}")
 
-    result: WriteBeatResponse = await call_llm_json(prompt, WriteBeatResponse, temperature=CFG.TEMP_BEATS)
+    opts = beat_generation_options(
+        beat_type=cur.get("type", ""),
+        chapter=chapter,
+        beat_index=beat_index,
+    )
+
+    result: WriteBeatResponse = await call_llm_json(
+        prompt, WriteBeatResponse, temperature=CFG.TEMP_BEATS, options_extra=opts,
+    )
     payload = result.model_dump()
 
     await store.a_kv_set(f"ch{chapter}_beat_{beat_index}", {"beat_index": beat_index, **payload})
