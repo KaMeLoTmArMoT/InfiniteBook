@@ -59,13 +59,11 @@ async def check_ollama_status():
 
 
 def log_ollama_usage(log, tag: str, resp: dict) -> None:
-    p = resp.get("prompt_eval_count")
-    r = resp.get("eval_count")
+    p = resp.get("prompt_eval_count", "- No data -")
+    r = resp.get("eval_count", "- No data -")
+    done_reason = resp.get("done_reason", "- No data -")
 
-    if p is None and r is None:
-        return
-
-    log.info(f"[ollama] {tag} prompt_eval_count={p} eval_count={r}")
+    log.info(f"[ollama] {tag} prompt_eval_count={p} eval_count={r} done_reason={done_reason}")
 
 
 def _tail_chars(text: str, approx_tokens: int = 400) -> str:
@@ -154,7 +152,7 @@ def beat_generation_options(*, beat_type: str, chapter: int, beat_index: int) ->
 
     # “human-ish” but still controlled
     return {
-        "num_predict": num_predict,
+        # "num_predict": num_predict,  # TODO: also tmp disable as breaks json
         "top_p": 0.9,
         "top_k": 30,
         "typical_p": 0.7,
