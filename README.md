@@ -6,8 +6,6 @@
     <br />
     Idea → Plot → Characters → Chapter Beats → Beat Prose, with local Ollama or cloud OpenRouter models.
     <br /><br />
-    <a href="#"><strong>View Demo »</strong></a>
-    ·
     <a href="../../issues">Report Bug</a>
     ·
     <a href="../../issues">Request Feature</a>
@@ -72,20 +70,20 @@ It supports multiple LLM providers behind a small gateway (local Ollama by defau
 
 ### Configuration (.env)
 
-Create `.env` in the project root:
+Copy `.env_example` -> `.env` in the project root:
 
 ```env
-# Provider selection
-IB_LLM_PROVIDER=openrouter          # or "ollama"
+IB_GEMINI_API=https://generativelanguage.googleapis.com
+IB_GEMINI_API_KEY=KEY
+IB_GEMINI_MODEL_NAME=gemini-3-flash
 
-# Ollama (local)
-IB_MODEL_NAME=gemma3:12b
-
-# OpenRouter (cloud)
 IB_OPENROUTER_API=https://openrouter.ai
-IB_OPENROUTER_API_KEY=XXX
+IB_OPENROUTER_API_KEY=KEY
 IB_OPENROUTER_PRIMARY_MODEL=meta-llama/llama-3.3-70b-instruct:free
 IB_OPENROUTER_FALLBACK_MODEL=openai/gpt-oss-120b:free
+
+# ollama | openrouter
+IB_LLM_PROVIDER=openrouter
 ```
 
 Notes:
