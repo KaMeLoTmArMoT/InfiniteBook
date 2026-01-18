@@ -122,6 +122,7 @@ function updatePlanButtonUI() {
 
 function syncChapterUI() {
   setChapterTitleDisplay();
+  setStep5ChapterHeader();
   setChapterNavEnabled(true);
   updatePlanButtonUI();
 }
@@ -132,7 +133,7 @@ async function loadChapterState(chapterNum, { open = false } = {}) {
 
   showStep4Container();
   setChapterTitleDisplay();
-
+  setStep5ChapterHeader();
   if (state.beats?.beats) {
     currentBeats = state.beats.beats;
     renderBeats(currentBeats);
@@ -163,6 +164,7 @@ async function loadStateOnStart() {
   try {
     const state = await fetchJSON(`/api/state?chapter=${currentChapter}`);
     if (typeof state.chapter === "number") currentChapter = state.chapter;
+    setStep5ChapterHeader();
 
     if (state.selected) {
       selectedData = state.selected;
@@ -202,7 +204,7 @@ async function loadStateOnStart() {
       renderWriteBeats(currentBeats, beatTexts);
 
       setStep5Enabled(true);
-      setStepStatus("step-5", `Ready (Ch ${currentChapter})`);
+      setStepStatus("step-5", "Ready");
     } else {
       setStep5Enabled(false);
     }
@@ -244,6 +246,7 @@ async function gotoChapter(chapterNum) {
 
   currentChapter = chapterNum;
 
+  setStep5ChapterHeader();
   showStep4Container();
   setStepStatus("step-4", `Loading (Ch ${currentChapter})...`);
 
@@ -496,7 +499,7 @@ async function planCurrentChapter() {
     renderWriteBeats(currentBeats, beatTexts);
 
     setStepStatus("step-4", `Done (Ch ${currentChapter})`);
-    setStepStatus("step-5", `Ready (Ch ${currentChapter})`);
+    setStepStatus("step-5", `Ready`);
 
     setStep5Enabled(true);
     enableWriteIt(true);
@@ -610,7 +613,7 @@ async function clearBeat(idx) {
     });
     delete beatTexts[idx];
     renderWriteBeats(currentBeats, beatTexts);
-    setStepStatus("step-5", `Beat ${idx + 1} cleared (Ch ${currentChapter})`);
+    setStepStatus("step-5", `Beat ${idx + 1} cleared`);
   } catch (e) {
     console.error(e);
     alert("Failed to clear beat in DB");
@@ -636,7 +639,7 @@ async function clearFrom(fromIdx) {
     });
 
     renderWriteBeats(currentBeats, beatTexts);
-    setStepStatus("step-5", `Cleared from beat ${fromIdx + 1} (Ch ${currentChapter})`);
+    setStepStatus("step-5", `Cleared from beat ${fromIdx + 1}`);
   } catch (e) {
     console.error(e);
     alert("Failed to clear beats in DB");
@@ -648,7 +651,7 @@ async function clearFrom(fromIdx) {
 async function clearAllBeats() {
   if (!currentBeats?.length) return;
   openStep("step-5", { scroll: false });
-  setStepStatus("step-5", `Clearing all (Ch ${currentChapter})...`);
+  setStepStatus("step-5", "Clearing all...");
   await clearFrom(0);
 }
 
@@ -668,7 +671,7 @@ async function generateAllBeats() {
     for (let i = start; i < currentBeats.length; i++) {
       if (beatTexts[i]?.trim()) continue;
 
-      setStepStatus("step-5", `Generating ${i + 1} / ${currentBeats.length} (Ch ${currentChapter})...`);
+      setStepStatus("step-5", `Generating ${i + 1} / ${currentBeats.length}...`);
 
       const proseEl = $(`#beat-prose-${i}`);
       if (proseEl) {
@@ -682,10 +685,10 @@ async function generateAllBeats() {
       renderWriteBeats(currentBeats, beatTexts);
     }
 
-    setStepStatus("step-5", `Saving continuity (Ch ${currentChapter})...`);
+    setStepStatus("step-5", "Saving continuity...");
     await buildChapterContinuity(currentChapter);
 
-    setStepStatus("step-5", `Generate all done (Ch ${currentChapter})`);
+    setStepStatus("step-5", "Generate all done");
   } catch (e) {
     console.error(e);
     alert("Generate all stopped due to an error");
@@ -699,7 +702,7 @@ async function writeBeat(beatIndex) {
   if (!currentBeats?.length) return;
 
   openStep("step-5", { scroll: false });
-  setStepStatus("step-5", `Writing beat ${beatIndex + 1} (Ch ${currentChapter})...`);
+  setStepStatus("step-5", `Writing beat ${beatIndex + 1}...`);
 
   await disableWriteControls(true);
 
@@ -717,7 +720,7 @@ async function writeBeat(beatIndex) {
 
     if (beatIndex === currentBeats.length - 1) await buildChapterContinuity(currentChapter);
 
-    setStepStatus("step-5", `Beat ${beatIndex + 1} done (Ch ${currentChapter})`);
+    setStepStatus("step-5", `Beat ${beatIndex + 1} done`);
   } catch (e) {
     console.error(e);
     alert("Failed to write beat");
@@ -751,4 +754,11 @@ async function buildChapterContinuity(chapterNum) {
   } catch (e) {
     console.warn("Continuity build failed (non-fatal):", e);
   }
+}
+
+function setStep5ChapterHeader() {
+  const ch = currentPlotData?.chapters?.[currentChapter - 1];
+  const el = $("#step-5-chapter-title");
+  if (!el) return;
+  el.innerText = ch ? `Ch ${currentChapter}: ${ch.title}` : `Ch ${currentChapter}`;
 }
