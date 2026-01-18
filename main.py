@@ -1,22 +1,33 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse
 import asyncio
 from fastapi import WebSocket, WebSocketDisconnect
-from ollama import AsyncClient
-from pydantic import ValidationError
 
 from utils.core_logger import log
 from utils.core_models import *
+from utils.models import build_model_gateway
 from utils.prompts import *
 from utils.utils import *
 from utils.memory_store import MemoryStore
-from utils.utils import _tail_chars, _build_write_context
+from utils.utils import _build_write_context
 
-app = FastAPI()
-ollama_client = AsyncClient()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await store.a_init_db()
+    await MODEL.startup()
+    yield
+    # shutdown
+    await MODEL.shutdown()
+
+
+app = FastAPI(lifespan=lifespan)
+MODEL = build_model_gateway()
+log.info("Run")
 store = MemoryStore("infinitebook.sqlite")
 
 app.mount("/static", StaticFiles(directory="templates"), name="static")
@@ -31,55 +42,17 @@ async def call_llm_json(
         max_retries: int = CFG.LLM_MAX_RETRIES,
         options_extra: dict | None = None,
 ) -> BaseModel:
-    schema = response_model.model_json_schema()
-    last_error: Exception | None = None
-
-    for attempt in range(max_retries + 1):
-        extra = ""
-        if attempt > 0:
-            extra = "\nIMPORTANT: Return ONLY valid JSON matching the schema. No prose. No markdown."
-
-        options = {"temperature": temperature}
-        if options_extra:
-            options.update(options_extra)  # allow per-call overrides like num_predict/top_p/etc.
-
-        resp = await ollama_client.chat(
-            model=CFG.MODEL_NAME,
-            messages=[{"role": "user", "content": prompt + extra}],
-            options=options,
-            format=schema,
-        )
-
-        raw = resp["message"]["content"]
-        log_ollama_usage(log, f"LLM_CALL_ATTEMPT_{attempt}", resp)
-        log.debug(f"LLM RAW OUTPUT (attempt={attempt}):\n{raw}\n" + "=" * 60)
-        log.debug(f"LLM OPTIONS USED: {options}")
-
-        try:
-            return response_model.model_validate_json(raw)
-        except Exception as e:
-            last_error = e
-
-        data = clean_json_response(raw)
-        if data is None:
-            last_error = ValueError("Failed to parse JSON from model output")
-            continue
-
-        try:
-            return response_model.model_validate(data)
-        except ValidationError as e:
-            last_error = e
-            continue
-
-    raise RuntimeError(f"LLM JSON validation failed after retries: {last_error}")
+    return await MODEL.generate_json_validated(
+        prompt,
+        response_model,
+        temperature=temperature,
+        max_retries=max_retries,
+        options=options_extra,
+        tag="call_llm_json",
+    )
 
 
 # --- ENDPOINTS ---
-
-@app.on_event("startup")
-async def startup_event():
-    await store.a_init_db()
-
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -300,6 +273,8 @@ async def build_chapter_continuity(req: BuildContinuityRequest):
 
 @app.websocket("/ws/monitor")
 async def websocket_endpoint(websocket: WebSocket):
+    providers = [CFG.LLM_PROVIDER]
+
     await websocket.accept()
     try:
         while True:
@@ -307,8 +282,10 @@ async def websocket_endpoint(websocket: WebSocket):
             ollama_stat = await check_ollama_status()
 
             data = {
+                "llm": {"providers": providers},
                 "gpu": gpu,
-                "ollama": ollama_stat
+                "ollama": ollama_stat,
+                "ram": get_ram_status(),
             }
 
             await websocket.send_json(data)
@@ -322,6 +299,4 @@ async def websocket_endpoint(websocket: WebSocket):
 if __name__ == "__main__":
     import uvicorn
 
-    # Now we run simple uvicorn start because we are in __main__
-    # Note: "main:app" string style is needed for reload=True to work
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False)
+    uvicorn.run(app, host="127.0.0.1", port=8000, reload=False)

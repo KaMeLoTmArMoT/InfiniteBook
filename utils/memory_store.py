@@ -347,7 +347,7 @@ class MemoryStore:
         if not merged:
             return None
 
-        # slice tail (last N chars) [web:492]
+        # slice tail (last N chars)
         if len(merged) > max_chars:
             merged = merged[-max_chars:]
 

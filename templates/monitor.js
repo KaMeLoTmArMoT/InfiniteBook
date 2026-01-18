@@ -24,6 +24,27 @@ function updateMonitorUI(data) {
     olDot.classList.remove("status-online");
   }
 
+  const provEl = document.getElementById("llm-providers");
+  if (provEl) {
+    const ps = data.llm?.providers || [];
+    provEl.innerText = ps.length ? ps.join(", ") : "None";
+  }
+
+  if (data.ram && !data.ram.error) {
+    const used = data.ram.used || 0;
+    const total = data.ram.total || 0;
+    const pct = total > 0 ? (used / total) * 100 : 0;
+
+  document.getElementById("ram-text").innerText =
+    `${(used / (1024 ** 3)).toFixed(1)}G / ${(total / (1024 ** 3)).toFixed(1)}G`;
+
+    const bar = document.getElementById("ram-bar");
+    bar.style.width = `${pct}%`;
+    bar.className = "progress-fill";
+    if (pct > 70) bar.classList.add("warning");
+    if (pct > 90) bar.classList.add("danger");
+  }
+
   if (data.gpu && !data.gpu.error) {
     document.getElementById("gpu-name").innerText = (data.gpu.name || "").replace("NVIDIA GeForce ", "");
     document.getElementById("gpu-load").innerText = `${data.gpu.gpu_load}%`;

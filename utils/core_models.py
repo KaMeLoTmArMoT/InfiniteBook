@@ -12,9 +12,6 @@ class AppConfig(BaseSettings):
     Can be overridden with environment variables or a .env file later.
     """
     model_config = SettingsConfigDict(env_prefix="IB_", env_file=".env", env_file_encoding="utf-8")
-
-    # Model
-    # MODEL_NAME: str = "llama3.1:8b"
     MODEL_NAME: str = "gemma3:12b"
 
     # Generation sizes
@@ -43,6 +40,17 @@ class AppConfig(BaseSettings):
 
     # Monitoring
     MONITOR_INTERVAL_SEC: float = 1.0
+
+    GEMINI_API: str | None = None
+    GEMINI_API_KEY: str | None = None
+    GEMINI_MODEL_NAME: str | None = None
+
+    OPENROUTER_API: str | None = None
+    OPENROUTER_API_KEY: str | None = None
+    OPENROUTER_PRIMARY_MODEL: str | None = None
+    OPENROUTER_FALLBACK_MODEL: str | None = None
+
+    LLM_PROVIDER: str | None = None
 
 
 CFG = AppConfig()

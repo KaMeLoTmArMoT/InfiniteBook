@@ -154,6 +154,11 @@
     <div class="monitor-title">SYSTEM STATUS</div>
 
     <div class="mon-row">
+      <span class="mon-label">Providers:</span>
+      <span id="llm-providers" class="mon-val">...</span>
+    </div>
+
+    <div class="mon-row">
       <span class="mon-label">Ollama:</span>
       <span><span id="ollama-dot" class="status-dot"></span><span id="ollama-status">Checking...</span></span>
     </div>
@@ -175,6 +180,16 @@
       </div>
       <div class="progress-bg">
         <div id="vram-bar" class="progress-fill"></div>
+      </div>
+    </div>
+
+    <div class="mon-vram">
+      <div class="mon-row" style="margin-bottom:2px;">
+        <span class="mon-label">RAM:</span>
+        <span id="ram-text" class="mon-val">0 / 0 GB</span>
+      </div>
+      <div class="progress-bg">
+        <div id="ram-bar" class="progress-fill"></div>
       </div>
     </div>
   </div>

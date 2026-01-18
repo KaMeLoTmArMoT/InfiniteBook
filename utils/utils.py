@@ -1,21 +1,39 @@
 import hashlib
 import json
-import re
 
 import ollama
+import psutil
 import pynvml
 
 
 # --- JSON HELPERS (fallback) ---
-def clean_json_response(text: str):
-    """Extract JSON from a response that may contain markdown fences or extra text."""
-    try:
-        match = re.search(r"\{.*\}", text, re.DOTALL)
-        if match:
-            return json.loads(match.group(0))
-        return json.loads(text)
-    except Exception:
+def clean_json_response(raw: str) -> dict | list | None:
+    """
+    Placeholder. Import your real implementation.
+    """
+    raw = raw.strip()
+    if not raw:
         return None
+    try:
+        return json.loads(raw)
+    except Exception:
+        # extremely minimal fallback; keep your existing robust one
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start >= 0 and end > start:
+            try:
+                return json.loads(raw[start: end + 1])
+            except Exception:
+                return None
+    return None
+
+
+def _json_hint(schema: dict) -> str:
+    return (
+        "\nIMPORTANT: Return ONLY valid JSON matching this schema. "
+        "No markdown. No prose. No extra keys.\n"
+        f"SCHEMA:\n{json.dumps(schema)}\n"
+    )
 
 
 # --- MONITORING HELPERS ---
@@ -64,6 +82,11 @@ def log_ollama_usage(log, tag: str, resp: dict) -> None:
     done_reason = resp.get("done_reason", "- No data -")
 
     log.info(f"[ollama] {tag} prompt_eval_count={p} eval_count={r} done_reason={done_reason}")
+
+
+def get_ram_status():
+    vm = psutil.virtual_memory()
+    return {"used": int(vm.used), "total": int(vm.total)}
 
 
 def _tail_chars(text: str, approx_tokens: int = 400) -> str:
