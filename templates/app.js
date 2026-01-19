@@ -24,6 +24,7 @@ let currentCharacters = null;
 let currentChapter = 1;      // 1-based
 let currentBeats = null;     // beats array for current chapter
 let beatTexts = {};          // { idx: text } for current chapter (0-based)
+let beatAudio = {};
 
 /* ========= Boot ========= */
 document.addEventListener("DOMContentLoaded", () => {
@@ -140,6 +141,8 @@ async function loadChapterState(chapterNum, { open = false } = {}) {
 
     beatTexts = normalizeBeatTextsKeys(state.beat_texts || {});
     renderWriteBeats(currentBeats, beatTexts);
+    beatAudio = {}; // reset per chapter (simple)
+    await refreshAudioStatusForChapter(chapterNum);
 
     setStep5Enabled(true);
     updatePlanButtonUI();
@@ -202,6 +205,8 @@ async function loadStateOnStart() {
 
       beatTexts = normalizeBeatTextsKeys(state.beat_texts || {});
       renderWriteBeats(currentBeats, beatTexts);
+      beatAudio = {};
+      await refreshAudioStatusForChapter(currentChapter);
 
       setStep5Enabled(true);
       setStepStatus("step-5", "Ready");
@@ -238,6 +243,83 @@ function firstUnwrittenIndex() {
   }
   return null;
 }
+
+function getBeatAudio(idx){
+  if (!beatAudio[idx]) beatAudio[idx] = { exists: false, status: "missing", url: "" };
+  return beatAudio[idx];
+}
+
+function setBeatAudioStatus(idx, status, patch = {}){
+  beatAudio[idx] = { ...getBeatAudio(idx), ...patch, status };
+  updateBeatAudioRowUI(idx);
+}
+
+function updateBeatAudioRowUI(idx){
+  const row = $(`#write-beat-row-${idx}`);
+  if (!row) return;
+
+  const stEl = $(`[data-audio-status="${idx}"]`, row);
+  const genBtn = $(`button[data-audio-generate="${idx}"]`, row);
+  const playBtn = $(`button[data-audio-play="${idx}"]`, row);
+  const audioEl = $(`audio[data-audio-el="${idx}"]`, row);
+
+  const st = getBeatAudio(idx);
+
+  if (stEl) stEl.textContent = st.status;
+  if (genBtn) genBtn.textContent = (st.exists ? "Regenerate" : "Generate");
+  if (playBtn) playBtn.disabled = !(st.exists && st.url);
+
+  // keep <audio> src in sync if we have one
+  if (audioEl && st.url && audioEl.src !== st.url) audioEl.src = st.url;
+
+  if (playBtn && audioEl){
+    playBtn.textContent = audioEl.paused ? "Play" : "Pause";
+  }
+}
+
+async function refreshAudioStatusForChapter(chapterNum){
+  if (!currentBeats?.length) return;
+
+  const res = await fetchJSON(`/api/audio/status?chapter=${chapterNum}`);
+  const items = res?.items || [];
+
+  items.forEach((it) => {
+    const idx = Number(it.beat_index);
+    if (Number.isNaN(idx)) return;
+
+    const rel = it.url || (it.exists ? `/api/audio/wav?chapter=${chapterNum}&beat_index=${idx}` : "");
+    const abs = rel ? new URL(rel, window.location.href).href : "";
+    beatAudio[idx] = {
+      exists: !!it.exists,
+      status: it.status || (it.exists ? "ready" : "missing"),
+      url: abs,
+    };
+  });
+
+  // reflect to DOM
+  currentBeats.forEach((_, idx) => updateBeatAudioRowUI(idx));
+}
+
+function startAudioPoll(chapterNum, beatIdx){
+  let tries = 0;
+  const t = setInterval(async () => {
+    tries++;
+    try{
+      await refreshAudioStatusForChapter(chapterNum);
+
+      const st = getBeatAudio(beatIdx)?.status;
+      if (st === "ready" || st === "error" || tries > 120) { // ~60s at 500ms
+        clearInterval(t);
+      }
+    } catch(_){
+      // ignore, keep trying a bit
+      if (tries > 10) clearInterval(t);
+    }
+  }, 2000);
+
+  return () => clearInterval(t);
+}
+
 
 /* ========= Chapter navigation ========= */
 async function gotoChapter(chapterNum) {
@@ -497,6 +579,8 @@ async function planCurrentChapter() {
 
     renderBeats(currentBeats);
     renderWriteBeats(currentBeats, beatTexts);
+    beatAudio = {};
+    await refreshAudioStatusForChapter(currentChapter);
 
     setStepStatus("step-4", `Done (Ch ${currentChapter})`);
     setStepStatus("step-5", `Ready`);
@@ -550,6 +634,29 @@ function renderWriteBeats(beats, textsByIdx) {
     const isWritten = txt.trim().length > 0;
     const safeText = highlightDialogueToHtml(txt);
 
+    const a = getBeatAudio(idx);
+    // For now: only show audio controls when there is text.
+    // Later backend will set a.exists/a.url even before written (if you want).
+    const showAudio = isWritten;
+
+    const audioControlsHtml = showAudio ? `
+      <div class="audio-controls" style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <button data-audio-generate="${idx}" style="background:#0ea5e9;">
+          ${a.exists ? "Regenerate" : "Generate"}
+        </button>
+    
+        <button data-audio-play="${idx}" class="secondary" ${!(a.exists && a.url) ? "disabled" : ""}>
+          Play
+        </button>
+    
+        <span data-audio-status="${idx}" style="font-size:0.85rem; color:#64748b;">
+          ${a.status || "missing"}
+        </span>
+    
+        <audio data-audio-el="${idx}" controls controlslist="nodownload" preload="metadata" style="width:320px; height:32px;"></audio>
+      </div>
+    ` : "";
+
     wrap.innerHTML += `
       <div class="beat-item" id="write-beat-row-${idx}">
         <div style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
@@ -573,11 +680,14 @@ function renderWriteBeats(beats, textsByIdx) {
                 ? `<pre id="beat-prose-${idx}" style="white-space:pre-wrap; margin:0; padding:10px; background:#0b1220; color:#e2e8f0; border-radius:8px;">${safeText}</pre>`
                 : `<div id="beat-prose-${idx}" style="color:#64748b; font-style:italic;">(not written yet)</div>`
             }
+            ${audioControlsHtml}
           </div>
         </div>
       </div>
     `;
   });
+  beats.forEach((_, idx) => updateBeatAudioRowUI(idx));
+  wireAudioElements();
 }
 
 function wireWriteBeatDelegation() {
@@ -590,6 +700,65 @@ function wireWriteBeatDelegation() {
 
     const clearFromBtn = event.target.closest("button[data-clear-from]");
     if (clearFromBtn) return clearFrom(Number(clearFromBtn.getAttribute("data-clear-from")));
+
+    const genAudioBtn = event.target.closest("button[data-audio-generate]");
+    if (genAudioBtn){
+      const idx = Number(genAudioBtn.getAttribute("data-audio-generate"));
+      if (Number.isNaN(idx)) return;
+
+        setBeatAudioStatus(idx, "generating", { exists: false, url: "" });
+
+        try{
+          // force regenerate if already exists (your button says Regenerate)
+          const force = !!getBeatAudio(idx)?.exists;
+
+          await fetchJSON("/api/audio/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chapter: currentChapter, beat_index: idx, force }),
+          });
+
+          // start polling until ready/error
+          startAudioPoll(currentChapter, idx);
+        } catch (e){
+          console.error(e);
+          setBeatAudioStatus(idx, "error", { exists: false, url: "" });
+        }
+        return;
+    }
+
+    const playAudioBtn = event.target.closest("button[data-audio-play]");
+    if (playAudioBtn){
+      const idx = Number(playAudioBtn.getAttribute("data-audio-play"));
+      if (Number.isNaN(idx)) return;
+
+      const row = $(`#write-beat-row-${idx}`);
+      const audioEl = row ? $(`audio[data-audio-el="${idx}"]`, row) : null;
+      if (!audioEl) return;
+
+      const st = getBeatAudio(idx);
+      if (!st.exists || !st.url){
+        setBeatAudioStatus(idx, "missing");
+        return;
+      }
+
+      if (audioEl.src !== st.url) audioEl.src = st.url;
+
+      if (!audioEl.paused){
+        audioEl.pause();
+        return;
+      }
+
+      const p = audioEl.play();
+      if (p && typeof p.catch === "function"){
+        p.catch((e) => {
+          // AbortError happens if playback/load was interrupted (often not a real error)
+          if (e && e.name === "AbortError") return;
+          setBeatAudioStatus(idx, "error");
+        });
+      }
+      return;
+    }
 
     const writeBtn = event.target.closest("button[data-write-beat]");
     if (!writeBtn) return;
@@ -613,6 +782,7 @@ async function clearBeat(idx) {
     });
     delete beatTexts[idx];
     renderWriteBeats(currentBeats, beatTexts);
+    await refreshAudioStatusForChapter(currentChapter);
     setStepStatus("step-5", `Beat ${idx + 1} cleared`);
   } catch (e) {
     console.error(e);
@@ -620,6 +790,20 @@ async function clearBeat(idx) {
   } finally {
     await disableWriteControls(false);
   }
+}
+
+function wireAudioElements(){
+  $$("audio[data-audio-el]").forEach((audioEl) => {
+    if (audioEl.__wired) return;
+    audioEl.__wired = true;
+
+    const idx = Number(audioEl.getAttribute("data-audio-el"));
+    if (Number.isNaN(idx)) return;
+
+    audioEl.addEventListener("play", () => setBeatAudioStatus(idx, "playing")); // [web:1330]
+    audioEl.addEventListener("pause", () => setBeatAudioStatus(idx, "paused")); // [web:1314]
+    audioEl.addEventListener("ended", () => setBeatAudioStatus(idx, "ready"));  // [web:1315]
+  });
 }
 
 async function clearFrom(fromIdx) {
@@ -639,6 +823,7 @@ async function clearFrom(fromIdx) {
     });
 
     renderWriteBeats(currentBeats, beatTexts);
+    await refreshAudioStatusForChapter(currentChapter);
     setStepStatus("step-5", `Cleared from beat ${fromIdx + 1}`);
   } catch (e) {
     console.error(e);
@@ -717,6 +902,7 @@ async function writeBeat(beatIndex) {
     const data = await fetchJSON(`/api/write_beat?chapter=${currentChapter}&beat_index=${beatIndex}`);
     beatTexts[beatIndex] = data.text || "";
     renderWriteBeats(currentBeats, beatTexts);
+    await refreshAudioStatusForChapter(currentChapter);
 
     if (beatIndex === currentBeats.length - 1) await buildChapterContinuity(currentChapter);
 

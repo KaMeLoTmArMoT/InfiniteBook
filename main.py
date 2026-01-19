@@ -1,10 +1,10 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-import asyncio
 from fastapi import WebSocket, WebSocketDisconnect
 
 from utils.core_logger import log
@@ -14,6 +14,15 @@ from utils.prompts import *
 from utils.utils import *
 from utils.memory_store import MemoryStore
 from utils.utils import _build_write_context
+
+import asyncio
+from pathlib import Path
+from fastapi import HTTPException
+from fastapi.responses import FileResponse
+
+if os.name == "nt":
+    log.info(f"Setting WindowsSelectorEventLoopPolicy for asyncio on Windows")
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 @asynccontextmanager
@@ -32,6 +41,9 @@ store = MemoryStore("infinitebook.sqlite")
 
 app.mount("/static", StaticFiles(directory="templates"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+AUDIO_JOBS = {}
+AUDIO_ROOT = Path("data/wavs")
 
 
 # --- ASYNC OLLAMA HELPER ---
@@ -294,6 +306,83 @@ async def websocket_endpoint(websocket: WebSocket):
         print("Monitor disconnected")
     except Exception as e:
         print(f"Monitor error: {e}")
+
+
+def _wav_path(chapter: int, beat_index: int) -> Path:
+    return AUDIO_ROOT / f"ch{chapter}" / f"beat{beat_index}.wav"
+
+
+@app.get("/api/audio/status")
+async def api_audio_status(chapter: int = 1):
+    st = await store.a_load_state(chapter=chapter)
+    beats = (st.get("beats") or {}).get("beats") or []
+    n = len(beats)
+
+    items = []
+    for idx in range(n):
+        p = _wav_path(chapter, idx)
+        job = AUDIO_JOBS.get((chapter, idx))
+
+        if job == "generating":
+            status = "generating"
+        elif job == "error":
+            status = "error"
+        else:
+            status = "ready" if p.exists() else "missing"
+
+        items.append({
+            "beat_index": idx,
+            "status": status,
+            "exists": p.exists(),
+            "url": f"/api/audio/wav?chapter={chapter}&beat_index={idx}" if p.exists() else "",
+        })
+
+    return {"chapter": chapter, "items": items}
+
+
+@app.get("/api/audio/wav")
+async def api_audio_wav(chapter: int, beat_index: int):
+    p = _wav_path(chapter, beat_index)
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="wav not found")
+    return FileResponse(str(p), media_type="audio/wav")  # [web:1355]
+
+
+@app.post("/api/audio/generate")
+async def api_audio_generate(payload: dict):
+    from utils.tts_audio import write_wav_for_text  # import here = avoids circulars
+
+    chapter = int(payload["chapter"])
+    beat_index = int(payload["beat_index"])
+    force = bool(payload.get("force", False))
+
+    key = (chapter, beat_index)
+    out_path = _wav_path(chapter, beat_index)
+
+    if AUDIO_JOBS.get(key) == "generating":
+        return {"ok": True, "status": "generating"}
+
+    if (not force) and out_path.exists():
+        return {"ok": True, "status": "ready"}
+
+    st = await store.a_load_state(chapter=chapter)
+    text = (st.get("beat_texts") or {}).get(beat_index, "")
+    text = (text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="beat text empty")
+
+    AUDIO_JOBS[key] = "generating"
+
+    async def _run():
+        try:
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            await asyncio.to_thread(write_wav_for_text, text, str(out_path))  # [web:1276]
+            AUDIO_JOBS[key] = "done"
+        except Exception:
+            AUDIO_JOBS[key] = "error"
+
+    asyncio.create_task(_run())
+    return {"ok": True, "status": "generating"}
 
 
 if __name__ == "__main__":

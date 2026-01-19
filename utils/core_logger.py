@@ -32,3 +32,16 @@ def setup_logger(name: str = "InfiniteBook", log_file: str = "app_debug.log"):
 
 # Global instance to import elsewhere
 log = setup_logger()
+
+
+class _IgnoreWin10054(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.exc_info and isinstance(record.exc_info[1], ConnectionResetError):
+            e = record.exc_info[1]
+            if getattr(e, "winerror", None) == 10054:
+                log.warning("Connection reset error")
+                return False
+        return True
+
+
+logging.getLogger("asyncio").addFilter(_IgnoreWin10054())

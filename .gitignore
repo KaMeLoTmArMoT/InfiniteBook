@@ -1,5 +1,6 @@
 .idea
 .venv
+.env
 
 
 *.sqlite*
@@ -8,3 +9,4 @@
 *.wav
 *.onnx
 *.onnx.json
+*.ipynb
