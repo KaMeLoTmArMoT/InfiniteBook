@@ -548,7 +548,7 @@ function renderWriteBeats(beats, textsByIdx) {
   beats.forEach((beat, idx) => {
     const txt = textsByIdx?.[idx] || "";
     const isWritten = txt.trim().length > 0;
-    const safeText = escapeHTML(txt);
+    const safeText = highlightDialogueToHtml(txt);
 
     wrap.innerHTML += `
       <div class="beat-item" id="write-beat-row-${idx}">

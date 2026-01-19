@@ -314,3 +314,8 @@ button:disabled {
   background: #10b981;
   box-shadow: 0 0 5px #10b981;
 }
+
+.dlg{
+  color: #fbbf24;         /* amber */
+  font-weight: 700;
+}

@@ -223,6 +223,11 @@
       font-family: var(--mono);
       display:none;
     }
+
+    pre.prose .dlg{
+      color: #fbbf24;               /* amber */
+      font-weight: 700;
+    }
   </style>
 </head>
 
@@ -338,7 +343,7 @@
       beats.forEach((b, idx) => {
         const prose = (beatTexts[idx] || "").trim();
         const proseHtml = prose
-          ? `<pre class="prose">${escapeHTML(prose)}</pre>`
+          ? `<pre class="prose">${highlightDialogueToHtml(prose)}</pre>`
           : `<div class="empty">(Beat not written yet)</div>`;
 
         const beatHtml = `
@@ -411,6 +416,16 @@
       const n = Number(e.target.value);
       if (!Number.isNaN(n)) loadChapter(n);
     });
+
+    function highlightDialogueToHtml(raw){
+      // raw is plain text; return HTML string
+      const safe = escapeHTML(raw);
+
+      // Match quoted dialogue (non-greedy) for:
+      // " ... "  and  “ ... ”
+      const re = /("(?:[^"\\]|\\.)*")|(“[^”]*”)/g;
+      return safe.replace(re, '<span class="dlg">$&</span>');
+    }
 
     init();
   </script>
