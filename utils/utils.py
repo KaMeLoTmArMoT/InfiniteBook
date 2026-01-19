@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 
@@ -70,8 +71,8 @@ def get_gpu_status():
 async def check_ollama_status():
     """Simple check if Ollama is responsive"""
     try:
-        models = ollama.list()
-        return {"status": "online", "model_count": len(models['models'])}
+        models = await asyncio.wait_for(asyncio.to_thread(ollama.list), timeout=1.0)
+        return {"status": "online", "model_count": len(models.get("models", []))}
     except:
         return {"status": "offline", "model_count": 0}
 
