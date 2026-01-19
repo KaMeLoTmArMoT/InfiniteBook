@@ -17,67 +17,152 @@ DIALOG_CFG = SynthesisConfig(volume=1.0, length_scale=0.95, noise_scale=0.80, no
 DIALOG_OPEN = {'"', "“"}
 DIALOG_CLOSE = {'"', "”"}
 
+
 @dataclass(frozen=True)
 class Span:
     kind: str  # "narr" | "dialog" | "pause"
     text: str
 
+
+def is_word_char(ch: str | None) -> bool:
+    if ch is None:
+        return False
+    return bool(re.match(r"[A-Za-z0-9_]", ch))
+
+
+def is_boundary(ch: str | None) -> bool:
+    # boundary = start/end OR not a "word char"
+    return ch is None or not is_word_char(ch)
+
+
 def split_dialog_spans(text: str) -> list[Span]:
+    # Normalize newlines first
     text = (text or "").replace("\r\n", "\n").replace("\r", "\n")
+    # Collapse 3+ newlines to 2 (pause)
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
 
     spans: list[Span] = []
-    buf: list[str] = []
-    in_dialog = False
-    opener = None
+    current_kind = "narr"
+    buf = []
 
-    def flush(kind: str):
-        s = "".join(buf)
+    def flush(new_kind: str):
+        nonlocal current_kind
+        if buf:
+            content = "".join(buf)
+            # detect explicit pause (double newline) in narr
+            if current_kind == "narr" and "\n\n" in content:
+                # split by pause if present
+                parts = content.split("\n\n")
+                for idx, p in enumerate(parts):
+                    if p:
+                        spans.append(Span("narr", p))
+                    if idx < len(parts) - 1:
+                        spans.append(Span("pause", "\n\n"))
+            else:
+                spans.append(Span(current_kind, content))
         buf.clear()
-        if s:
-            spans.append(Span(kind, s))
+        current_kind = new_kind
 
     i = 0
-    while i < len(text):
-        if text.startswith("\n\n", i):
-            flush("dialog" if in_dialog else "narr")
-            spans.append(Span("pause", "\n\n"))
-            i += 2
-            continue
+    n = len(text)
 
+    while i < n:
         ch = text[i]
-        if (not in_dialog) and (ch in DIALOG_OPEN):
-            flush("narr")
-            in_dialog = True
-            opener = ch
+        prev = text[i - 1] if i > 0 else None
+
+        # Check for dialogue start
+        # 1. Curly quote “
+        if ch == "“":
+            flush("dialog")  # switch to dialog
+            # scan until ”
+            start = i
             i += 1
-            continue
-        if in_dialog and (ch in DIALOG_CLOSE) and (opener is not None):
-            flush("dialog")
-            in_dialog = False
-            opener = None
+            while i < n and text[i] != "”":
+                i += 1
+            # include the closing quote in the dialog span
+            inner = text[start + 1: i]  # drop “ and ”
+            buf.append(inner)
+            flush("narr")  # switch back immediately after block ends
             i += 1
             continue
 
+        # 2. Double quote "
+        if ch == '"':
+            # optional: require boundary before (matches JS logic)
+            if is_boundary(prev):
+                flush("dialog")
+                start = i
+                i += 1
+                while i < n:
+                    if text[i] == '"' and text[i - 1] != "\\":
+                        break
+                    i += 1
+                inner = text[start + 1: i]  # drop " and "
+                buf.append(inner)
+                flush("narr")
+                i += 1
+                continue
+
+        # 3. Single quote ' (but not apostrophe)
+        if ch == "'":
+            if is_boundary(prev):
+                # scan ahead to see if it's a valid quoted string
+                j = i + 1
+                found_close = False
+                while j < n:
+                    if text[j] == "'":
+                        before = text[j - 1]
+                        after = text[j + 1] if j + 1 < n else None
+
+                        is_apostrophe = is_word_char(before) and is_word_char(after)
+                        is_closing = (not is_apostrophe) and is_boundary(after)
+
+                        if is_closing:
+                            found_close = True
+                            break
+                    j += 1
+
+                if found_close:
+                    flush("dialog")
+                    inner = text[i + 1: j]  # drop ' and '
+                    buf.append(inner)
+                    flush("narr")
+                    i = j + 1
+                    continue
+
+        # otherwise, regular char
         buf.append(ch)
         i += 1
 
-    flush("dialog" if in_dialog else "narr")
+    flush("narr")  # final flush
 
-    out: list[Span] = []
+    # Cleanup: merge adjacent same-kind spans (optional, but good for fewer chunks)
+    merged = []
     for s in spans:
+        if not s.text: continue
+        if merged and merged[-1].kind == s.kind and s.kind != "pause":
+            # merge
+            merged[-1] = Span(s.kind, merged[-1].text + s.text)
+        else:
+            merged.append(s)
+
+    # Cleanup 2: strip whitespace from text, remove empty
+    final = []
+    for s in merged:
         if s.kind == "pause":
-            if out and out[-1].kind != "pause":
-                out.append(s)
+            final.append(s)
             continue
         cleaned = re.sub(r"\s+", " ", s.text).strip()
         if cleaned:
-            out.append(Span(s.kind, cleaned))
-    return out
+            final.append(Span(s.kind, cleaned))
+
+    return final
+
 
 def _silence_bytes(ms: int, sr: int, sw: int, ch: int) -> bytes:
     frames = int(sr * ms / 1000)
     return b"\x00" * (frames * sw * ch)
+
 
 def write_wav_for_text(text: str, out_path: str) -> None:
     spans = split_dialog_spans(text)
@@ -96,19 +181,27 @@ def write_wav_for_text(text: str, out_path: str) -> None:
     def pick_cfg(kind: str) -> SynthesisConfig:
         return DIALOG_CFG if kind == "dialog" else NARR_CFG
 
-    # first chunk defines wav format
-    first = None
+    # first span defines wav format, but we must write ALL chunks of it
     first_i = None
+    first_span = None
+    first_gen = None
+    first_chunk = None
+
     for i, s in enumerate(spans):
         if s.kind != "pause" and s.text.strip():
             v = pick_voice(s.kind)
-            first = next(v.synthesize(s.text.strip(), syn_config=pick_cfg(s.kind)))
+            cfg = pick_cfg(s.kind)
+
+            first_gen = v.synthesize(s.text.strip(), syn_config=cfg)
+            first_chunk = next(first_gen)  # only to read format; we'll write it + the rest
             first_i = i
+            first_span = s
             break
-    if first is None:
+
+    if first_chunk is None or first_gen is None or first_i is None or first_span is None:
         raise ValueError("No non-empty spans")
 
-    sr, sw, ch = first.sample_rate, first.sample_width, first.sample_channels
+    sr, sw, ch = first_chunk.sample_rate, first_chunk.sample_width, first_chunk.sample_channels
     log.info(f"Format: sr={sr} sw={sw} ch={ch}")
 
     def ensure_fmt(chunk) -> None:
@@ -126,8 +219,11 @@ def write_wav_for_text(text: str, out_path: str) -> None:
         if LEAD_IN_MS > 0:
             wf.writeframes(_silence_bytes(LEAD_IN_MS, sr, sw, ch))
 
-        ensure_fmt(first)
-        wf.writeframes(first.audio_int16_bytes)
+        ensure_fmt(first_chunk)
+        wf.writeframes(first_chunk.audio_int16_bytes)
+        for chunk in first_gen:
+            ensure_fmt(chunk)
+            wf.writeframes(chunk.audio_int16_bytes)
 
         for s in spans[first_i + 1:]:
             if s.kind == "pause":
@@ -139,8 +235,11 @@ def write_wav_for_text(text: str, out_path: str) -> None:
             wf.writeframes(_silence_bytes(60, sr, sw, ch))
             v = pick_voice(s.kind)
             cfg = pick_cfg(s.kind)
+            chunk_count = 0
             for chunk in v.synthesize(s.text.strip(), syn_config=cfg):
+                chunk_count += 1
                 ensure_fmt(chunk)
                 wf.writeframes(chunk.audio_int16_bytes)
+            log.debug("Span kind=%s chunks=%d", s.kind, chunk_count)
 
     Path(tmp).replace(out_path)
