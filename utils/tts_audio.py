@@ -11,8 +11,12 @@ VOICE_DIALOG = PiperVoice.load("tts_models/en_GB-cori-high.onnx")
 
 LEAD_IN_MS = 1000
 
-NARR_CFG = SynthesisConfig(volume=1.0, length_scale=1.10, noise_scale=0.60, noise_w_scale=0.70, normalize_audio=False)
-DIALOG_CFG = SynthesisConfig(volume=1.0, length_scale=0.95, noise_scale=0.80, noise_w_scale=0.90, normalize_audio=False)
+NARR_CFG = SynthesisConfig(
+    volume=1.0, length_scale=1.10, noise_scale=0.60, noise_w_scale=0.70, normalize_audio=False
+)
+DIALOG_CFG = SynthesisConfig(
+    volume=1.0, length_scale=1.08, noise_scale=0.95, noise_w_scale=1.05, normalize_audio=False
+)
 
 DIALOG_OPEN = {'"', "“"}
 DIALOG_CLOSE = {'"', "”"}
