@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IBA — TTS Samples</title>
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#0f1a2e;
+      --text:#e2e8f0;
+      --muted:#94a3b8;
+      --border:rgba(148,163,184,.18);
+      --quote:#f59e0b;
+    }
+
+    *{box-sizing:border-box}
+    html, body { height: 100%; }
+    body{
+      margin:0;
+      color:var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+
+      /* solid + 2 soft gradients, fixed across the whole page */
+      background-color: var(--bg);
+      background-image:
+        radial-gradient(900px 600px at 15% 0%, rgba(99,102,241,.20), transparent 55%),
+        radial-gradient(800px 520px at 85% 10%, rgba(14,165,233,.14), transparent 55%);
+      background-repeat: no-repeat;
+      background-size: cover;
+      background-attachment: fixed;
+
+      min-height: 100vh;
+    }
+
+    .wrap{
+      max-width: 920px;
+      margin: 0 auto;
+      padding: 20px 14px 40px;
+    }
+
+    .card{
+      border:1px solid var(--border);
+      background: rgba(15,26,46,.85);
+      border-radius: 14px;
+      padding: 14px;
+      margin: 14px 0;
+    }
+
+    h1{margin:0 0 6px; font-size: 18px;}
+    .muted{color:var(--muted); font-size: 12px; margin:0 0 10px;}
+
+    .audio-grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 820px){ .audio-grid{grid-template-columns:1fr} }
+
+    .label{font-weight:800; margin: 0 0 6px;}
+    audio{width:100%}
+
+    .text{
+      line-height: 1.6;
+      background: rgba(12,22,40,.45);
+      border:1px solid rgba(148,163,184,.10);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    .text p{margin:0 0 10px}
+    .text p:last-child{margin-bottom:0}
+
+    .q{color:var(--quote); font-weight:800;}
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Infinite Book Architect — TTS Samples</h1>
+      <p class="muted">Same fragment, two engines.</p>
+
+      <div class="audio-grid">
+        <div>
+          <div class="label">XTTS</div>
+          <audio controls preload="metadata">
+            <source src="../assets/beat0_xtts.wav" type="audio/wav" />
+          </audio>
+        </div>
+
+        <div>
+          <div class="label">Piper</div>
+          <audio controls preload="metadata">
+            <source src="../assets/beat0_piper.wav" type="audio/wav" />
+          </audio>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="text">
+        <p>A sizzle escaped the ramen, steam momentarily obscuring the chipped ceramic bowl. Rain lashed against the corrugated plastic roof of the noodle bar, a relentless percussion against the low hum of the city. Arin’s fingers danced across the datapad’s surface, lines of code scrolling past in a blur of emerald and sapphire. He adjusted his mirrored shades, the reflection of the crowded bar distorting the faces of the patrons – a kaleidoscope of cybernetic enhancements and weary expressions.</p>
+
+        <p><span class="q">“Anything?”</span> a voice rasped beside him. Kaito, his face scarred and perpetually shadowed, tapped a nicotine-stained finger against the table. Arin didn’t look up, his focus absolute.</p>
+
+        <p><span class="q">“Firewall’s tighter than I anticipated,”</span> he muttered, zooming in on a schematic of Chronos Corp’s network. <span class="q">“They’ve layered it with a quantum encryption protocol. Nasty.”</span> He took a long drag from a slim, black cigarette, the cherry glowing briefly in the dim light. The smell of synthetic pork and ozone clung to everything.</p>
+
+        <p>Another voice, closer this time, slurred, <span class="q">“Hey, chrome-face, you gonna eat that?”</span> Arin ignored him, his eyes fixed on the datapad. He initiated a brute-force decryption sequence. The bar's noise faded, replaced by the insistent whir of the datapad’s processors.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

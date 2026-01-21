@@ -101,12 +101,37 @@ Notes:
   <img src="assets/beats.png" width="720" alt="Chapter Beats + Write UI">
 </p>
 
+## TTS demo (same text, 2 engines)
+
+Live demo page: https://<username>.github.io/<repo>/tts.html
+
+**Audio samples (same fragment):**
+- **XTTS**: [beat0_xtts.wav](assets/beat0_xtts.wav)
+- **Piper**: [beat0_piper.wav](assets/beat0_piper.wav)
+
+<details>
+<summary><b>TTS sample text (click to expand)</b></summary>
+
+> A sizzle escaped the ramen, steam momentarily obscuring the chipped ceramic bowl. Rain lashed against the corrugated plastic roof of the noodle bar, a relentless percussion against the low hum of the city. Arin’s fingers danced across the datapad’s surface, lines of code scrolling past in a blur of emerald and sapphire. He adjusted his mirrored shades, the reflection of the crowded bar distorting the faces of the patrons – a kaleidoscope of cybernetic enhancements and weary expressions. 
+
+> **“Anything?”** a voice rasped beside him. Kaito, his face scarred and perpetually shadowed, tapped a nicotine-stained finger against the table. Arin didn’t look up, his focus absolute. 
+
+> **“Firewall’s tighter than I anticipated,”** he muttered, zooming in on a schematic of Chronos Corp’s network. **“They’ve layered it with a quantum encryption protocol. Nasty.”** He took a long drag from a slim, black cigarette, the cherry glowing briefly in the dim light. The smell of synthetic pork and ozone clung to everything. 
+
+> Another voice, closer this time, slurred, **“Hey, chrome-face, you gonna eat that?”** Arin ignored him, his eyes fixed on the datapad. He initiated a brute-force decryption sequence. The bar's noise faded, replaced by the insistent whir of the datapad’s processors.
+</details>
+
 ## Roadmap
 
 - Image generation for chapter/beat thumbnails (consistent character + style refs).
 - TTS narration (short-form “TikTok friendly” outputs).
 - Better memory/continuity tools (per-chapter capsule, global timeline).
 - Export formats (Markdown/EPUB/PDF).
+- User authentication + multi-user support.
+- More LLM providers (local + cloud).
+- UI/UX improvements.
+- Prompt tuning + custom templates.
+- Other plot generating structures (three-act, hero's journey, podcast script, etc.).
 
 See the [open issues](https://github.com/KaMeLoTmArMoT/InfiniteBook/issues).
 
