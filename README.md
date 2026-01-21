@@ -108,8 +108,8 @@ Notes:
 [`Live demo page`](https://kamelotmarmot.github.io/InfiniteBook/).
 
 **Audio samples (same fragment):**
-- **XTTS**: [beat0_xtts.wav](assets/beat0_xtts.wav)
-- **Piper**: [beat0_piper.wav](assets/beat0_piper.wav)
+- **XTTS**: [beat0_xtts.wav](docs/beat0_xtts.wav)
+- **Piper**: [beat0_piper.wav](docs/beat0_piper.wav)
 
 <details>
 <summary><b>TTS sample text (click to expand)</b></summary>
