@@ -6,6 +6,8 @@
     <br />
     Idea → Plot → Characters → Chapter Beats → Beat Prose, with local Ollama or cloud OpenRouter models.
     <br /><br />
+    <a href="https://kamelotmarmot.github.io/InfiniteBook/"><strong>View Demo »</strong></a>
+    ·
     <a href="../../issues">Report Bug</a>
     ·
     <a href="../../issues">Request Feature</a>
@@ -103,7 +105,7 @@ Notes:
 
 ## TTS demo (same text, 2 engines)
 
-Live demo page: https://<username>.github.io/<repo>/tts.html
+[`Live demo page`](https://kamelotmarmot.github.io/InfiniteBook/).
 
 **Audio samples (same fragment):**
 - **XTTS**: [beat0_xtts.wav](assets/beat0_xtts.wav)
