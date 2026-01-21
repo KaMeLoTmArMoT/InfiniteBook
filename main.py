@@ -11,6 +11,7 @@ from utils.core_logger import log
 from utils.core_models import *
 from utils.models import build_model_gateway
 from utils.prompts import *
+from utils.tts.tts_factory import make_tts_provider_async
 from utils.utils import *
 from utils.memory_store import MemoryStore
 from utils.utils import _build_write_context
@@ -29,6 +30,22 @@ if os.name == "nt":
 async def lifespan(app: FastAPI):
     await store.a_init_db()
     await MODEL.startup()
+
+    app.state.tts_provider = None
+    app.state.tts_ready = asyncio.Event()
+    app.state.tts_init_error = None
+
+    async def _init_tts():
+        try:
+            app.state.tts_provider = await make_tts_provider_async(CFG)
+            app.state.tts_ready.set()
+        except Exception as e:
+            app.state.tts_init_error = e
+            app.state.tts_ready.set()  # unblock waiters, but with error
+            log.warning(f"TTS init error: {e}")
+
+    app.state.tts_init_task = asyncio.create_task(_init_tts())
+
     yield
     # shutdown
     await MODEL.shutdown()
@@ -285,23 +302,31 @@ async def build_chapter_continuity(req: BuildContinuityRequest):
 
 @app.websocket("/ws/monitor")
 async def websocket_endpoint(websocket: WebSocket):
-    providers = [CFG.LLM_PROVIDER]
+    llm_providers = [CFG.LLM_PROVIDER]
+    tts_providers = [CFG.TTS_PROVIDER]
+
+    log.info(f"Monitor connected, LLM providers: {llm_providers}, TTS providers: {tts_providers}")
 
     await websocket.accept()
     try:
         while True:
             gpu = get_gpu_status()
+            cpu = await get_cpu_status_async()
             ollama_stat = await check_ollama_status()
 
             data = {
-                "llm": {"providers": providers},
+                "providers": {
+                    "llm": llm_providers,
+                    "tts": tts_providers,
+                },
                 "gpu": gpu,
+                "cpu": cpu,
                 "ollama": ollama_stat,
                 "ram": get_ram_status(),
             }
 
             await websocket.send_json(data)
-            await asyncio.sleep(CFG.MONITOR_INTERVAL_SEC)  # Оновлення щосекунди
+            await asyncio.sleep(CFG.MONITOR_INTERVAL_SEC)
     except WebSocketDisconnect:
         print("Monitor disconnected")
     except Exception as e:
@@ -349,9 +374,8 @@ async def api_audio_wav(chapter: int, beat_index: int):
 
 
 @app.post("/api/audio/generate")
-async def api_audio_generate(payload: dict):
-    from utils.tts_audio import write_wav_for_text  # import here = avoids circulars
-
+async def api_audio_generate(payload: dict, request: Request):
+    tts_provider = request.app.state.tts_provider
     chapter = int(payload["chapter"])
     beat_index = int(payload["beat_index"])
     force = bool(payload.get("force", False))
@@ -376,7 +400,7 @@ async def api_audio_generate(payload: dict):
     async def _run():
         try:
             out_path.parent.mkdir(parents=True, exist_ok=True)
-            await asyncio.to_thread(write_wav_for_text, text, str(out_path))  # [web:1276]
+            await asyncio.to_thread(tts_provider.write_wav_for_text, text, str(out_path))  # [web:1276]
             AUDIO_JOBS[key] = "done"
         except Exception:
             AUDIO_JOBS[key] = "error"

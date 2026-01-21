@@ -185,3 +185,7 @@ def beat_generation_options(*, beat_type: str, chapter: int, beat_index: int) ->
         "frequency_penalty": 0.2,
         # "seed": seed,  # TODO: do not use for now
     }
+
+async def get_cpu_status_async():
+    cpu = await asyncio.to_thread(psutil.cpu_percent, 0.2)
+    return {"cpu_load": cpu}

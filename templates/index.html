@@ -154,10 +154,15 @@
   <div id="monitor-widget">
     <div class="monitor-title">SYSTEM STATUS</div>
 
-    <div class="mon-row">
-      <span class="mon-label">Providers:</span>
-      <span id="llm-providers" class="mon-val">...</span>
-    </div>
+      <div class="mon-row">
+          <span class="mon-label">Providers LLM:</span>
+          <span id="llm-providers" class="mon-val">...</span>
+      </div>
+
+      <div class="mon-row">
+          <span class="mon-label">Providers TTS:</span>
+          <span id="tts-providers" class="mon-val">...</span>
+      </div>
 
     <div class="mon-row">
       <span class="mon-label">Ollama:</span>
@@ -170,7 +175,12 @@
     </div>
 
     <div class="mon-row">
-      <span class="mon-label">Load:</span>
+      <span class="mon-label">Load CPU:</span>
+      <span id="cpu-load" class="mon-val">0%</span>
+    </div>
+
+    <div class="mon-row">
+      <span class="mon-label">Load GPU:</span>
       <span id="gpu-load" class="mon-val">0%</span>
     </div>
 

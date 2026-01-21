@@ -315,7 +315,7 @@ function startAudioPoll(chapterNum, beatIdx){
       // ignore, keep trying a bit
       if (tries > 10) clearInterval(t);
     }
-  }, 2000);
+  }, 3000);
 
   return () => clearInterval(t);
 }

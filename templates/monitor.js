@@ -24,10 +24,21 @@ function updateMonitorUI(data) {
     olDot.classList.remove("status-online");
   }
 
-  const provEl = document.getElementById("llm-providers");
-  if (provEl) {
-    const ps = data.llm?.providers || [];
-    provEl.innerText = ps.length ? ps.join(", ") : "None";
+  const llmEl = document.getElementById("llm-providers");
+  if (llmEl) {
+    const ps = data.providers?.llm || [];
+    llmEl.innerText = ps.length ? ps.join(", ") : "None";
+  }
+
+  const ttsEl = document.getElementById("tts-providers");
+  if (ttsEl) {
+    const ps = data.providers?.tts || [];
+    ttsEl.innerText = ps.length ? ps.join(", ") : "None";
+  }
+
+  const cpu = data.cpu;
+  if (cpu && cpu.cpu_load != null) {
+    document.getElementById("cpu-load").innerText = `${Math.round(cpu.cpu_load)}%`;
   }
 
   if (data.ram && !data.ram.error) {

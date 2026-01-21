@@ -52,6 +52,17 @@ class AppConfig(BaseSettings):
 
     LLM_PROVIDER: str | None = None
 
+    TTS_PROVIDER: str | None = None
+
+    XTTS_MODEL: str = "tts_models/multilingual/multi-dataset/xtts_v2"
+    XTTS_LANGUAGE: str = "en"
+    XTTS_NARR_VOICE: str = "Filip Traverse"
+    XTTS_DIALOG_VOICE: str = "Aaron Dreschner"
+    XTTS_FADE_MS: int = 20  # 0 => disable
+
+    PIPER_NARR_MODEL: str = "tts_models/en_US-ryan-high.onnx"
+    PIPER_DIALOG_MODEL: str = "tts_models/en_GB-cori-high.onnx"
+
 
 CFG = AppConfig()
 
