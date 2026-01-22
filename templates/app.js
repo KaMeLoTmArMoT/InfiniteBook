@@ -1,3 +1,33 @@
+/* ========= Project ========= */
+let projectId = localStorage.getItem("ib_project_id") || null;
+
+function api(path) {
+  if (!projectId) throw new Error("projectId not set");
+  return `/api/projects/${projectId}${path}`;
+}
+
+async function ensureProject() {
+  if (projectId) return projectId;
+
+  const res = await fetchJSON("/api/projects");
+  const items = res?.items || [];
+
+  if (items.length) {
+    projectId = items[0].id;
+  } else {
+    const created = await fetchJSON("/api/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Untitled" }),
+    });
+    projectId = created?.project?.id;
+  }
+
+  if (!projectId) throw new Error("Failed to init project");
+  localStorage.setItem("ib_project_id", projectId);
+  return projectId;
+}
+
 /* ========= Tiny helpers ========= */
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -130,18 +160,22 @@ function syncChapterUI() {
 
 /* ========= Persistence ========= */
 async function loadChapterState(chapterNum, { open = false } = {}) {
-  const state = await fetchJSON(`/api/state?chapter=${chapterNum}`);
+  await ensureProject();
+
+  const state = await fetchJSON(`${api(`/state?chapter=${chapterNum}`)}`);
 
   showStep4Container();
   setChapterTitleDisplay();
   setStep5ChapterHeader();
+
   if (state.beats?.beats) {
     currentBeats = state.beats.beats;
     renderBeats(currentBeats);
 
     beatTexts = normalizeBeatTextsKeys(state.beat_texts || {});
     renderWriteBeats(currentBeats, beatTexts);
-    beatAudio = {}; // reset per chapter (simple)
+
+    beatAudio = {};
     await refreshAudioStatusForChapter(chapterNum);
 
     setStep5Enabled(true);
@@ -165,8 +199,11 @@ async function loadChapterState(chapterNum, { open = false } = {}) {
 
 async function loadStateOnStart() {
   try {
-    const state = await fetchJSON(`/api/state?chapter=${currentChapter}`);
+    await ensureProject();
+
+    const state = await fetchJSON(`${api(`/state?chapter=${currentChapter}`)}`);
     if (typeof state.chapter === "number") currentChapter = state.chapter;
+
     setStep5ChapterHeader();
 
     if (state.selected) {
@@ -205,6 +242,7 @@ async function loadStateOnStart() {
 
       beatTexts = normalizeBeatTextsKeys(state.beat_texts || {});
       renderWriteBeats(currentBeats, beatTexts);
+
       beatAudio = {};
       await refreshAudioStatusForChapter(currentChapter);
 
@@ -280,15 +318,19 @@ function updateBeatAudioRowUI(idx){
 async function refreshAudioStatusForChapter(chapterNum){
   if (!currentBeats?.length) return;
 
-  const res = await fetchJSON(`/api/audio/status?chapter=${chapterNum}`);
+  await ensureProject();
+
+  const res = await fetchJSON(api(`/audio/status?chapter=${chapterNum}`));
   const items = res?.items || [];
 
   items.forEach((it) => {
     const idx = Number(it.beat_index);
     if (Number.isNaN(idx)) return;
 
-    const rel = it.url || (it.exists ? `/api/audio/wav?chapter=${chapterNum}&beat_index=${idx}` : "");
+    // backend returns absolute path like /api/projects/{pid}/audio/wav?... already
+    const rel = it.url || (it.exists ? api(`/audio/wav?chapter=${chapterNum}&beat_index=${idx}`) : "");
     const abs = rel ? new URL(rel, window.location.href).href : "";
+
     beatAudio[idx] = {
       exists: !!it.exists,
       status: it.status || (it.exists ? "ready" : "missing"),
@@ -296,7 +338,6 @@ async function refreshAudioStatusForChapter(chapterNum){
     };
   });
 
-  // reflect to DOM
   currentBeats.forEach((_, idx) => updateBeatAudioRowUI(idx));
 }
 
@@ -393,6 +434,8 @@ function renderVariations(options) {
 async function generatePlot() {
   if (!selectedData) return;
 
+  await ensureProject();
+
   openStep("step-2");
   setStepStatus("step-2", "Running...");
   show("#loader-2", true);
@@ -400,7 +443,7 @@ async function generatePlot() {
   setDisabled("#btn-generate-chars", true);
 
   try {
-    const plotData = await fetchJSON("/api/plot", {
+    const plotData = await fetchJSON(api("/plot"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(selectedData),
@@ -443,6 +486,8 @@ function renderPlot(data) {
 async function generateCharacters() {
   if (!currentPlotData || !selectedData) return;
 
+  await ensureProject();
+
   openStep("step-3");
   setStepStatus("step-3", "Running...");
   show("#loader-3", true);
@@ -451,7 +496,7 @@ async function generateCharacters() {
   const summary = (currentPlotData.chapters || []).map((c) => `Ch${c.number}: ${c.summary}`).join("\n");
 
   try {
-    const data = await fetchJSON("/api/characters", {
+    const data = await fetchJSON(api("/characters"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -510,10 +555,12 @@ function wireCharacterDeleteDelegation() {
     if (!id) return;
 
     try {
-      btn.disabled = true;
-      await fetchJSON(`/api/characters/${id}`, { method: "DELETE" });
+      await ensureProject();
 
-      const st = await fetchJSON(`/api/state?chapter=${currentChapter}`);
+      btn.disabled = true;
+      await fetchJSON(api(`/characters/${id}`), { method: "DELETE" });
+
+      const st = await fetchJSON(api(`/state?chapter=${currentChapter}`));
       if (st.characters) {
         renderCharacters(st.characters);
         currentCharacters = [
@@ -535,6 +582,8 @@ function wireCharacterDeleteDelegation() {
 async function planCurrentChapter() {
   if (!currentPlotData?.chapters?.length || !selectedData) return;
 
+  await ensureProject();
+
   const ch = currentPlotData.chapters[currentChapter - 1];
   if (!ch) return;
 
@@ -548,7 +597,7 @@ async function planCurrentChapter() {
   setChapterTitleDisplay();
 
   try {
-    const data = await fetchJSON("/api/chapter_plan", {
+    const data = await fetchJSON(api("/chapter_plan"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -563,9 +612,9 @@ async function planCurrentChapter() {
 
     currentBeats = data.beats || [];
 
-    // wipe prose for this chapter after planning (keeps plan/prose consistent)
+    // wipe prose for this chapter after planning
     try {
-      await fetchJSON("/api/beat/clear_from", {
+      await fetchJSON(api("/beat/clear_from"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chapter: currentChapter, from_beat_index: 0 }),
@@ -579,6 +628,7 @@ async function planCurrentChapter() {
 
     renderBeats(currentBeats);
     renderWriteBeats(currentBeats, beatTexts);
+
     beatAudio = {};
     await refreshAudioStatusForChapter(currentChapter);
 
@@ -712,7 +762,7 @@ function wireWriteBeatDelegation() {
           // force regenerate if already exists (your button says Regenerate)
           const force = !!getBeatAudio(idx)?.exists;
 
-          await fetchJSON("/api/audio/generate", {
+          await fetchJSON(api("/audio/generate"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ chapter: currentChapter, beat_index: idx, force }),
@@ -773,16 +823,20 @@ function wireWriteBeatDelegation() {
 async function clearBeat(idx) {
   if (Number.isNaN(idx)) return;
 
+  await ensureProject();
   await disableWriteControls(true);
+
   try {
-    await fetchJSON("/api/beat/clear", {
+    await fetchJSON(api("/beat/clear"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chapter: currentChapter, beat_index: idx }),
     });
+
     delete beatTexts[idx];
     renderWriteBeats(currentBeats, beatTexts);
     await refreshAudioStatusForChapter(currentChapter);
+
     setStepStatus("step-5", `Beat ${idx + 1} cleared`);
   } catch (e) {
     console.error(e);
@@ -809,9 +863,11 @@ function wireAudioElements(){
 async function clearFrom(fromIdx) {
   if (Number.isNaN(fromIdx)) return;
 
+  await ensureProject();
   await disableWriteControls(true);
+
   try {
-    await fetchJSON("/api/beat/clear_from", {
+    await fetchJSON(api("/beat/clear_from"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chapter: currentChapter, from_beat_index: fromIdx }),
@@ -824,6 +880,7 @@ async function clearFrom(fromIdx) {
 
     renderWriteBeats(currentBeats, beatTexts);
     await refreshAudioStatusForChapter(currentChapter);
+
     setStepStatus("step-5", `Cleared from beat ${fromIdx + 1}`);
   } catch (e) {
     console.error(e);
@@ -865,7 +922,7 @@ async function generateAllBeats() {
         proseEl.style.fontStyle = "italic";
       }
 
-      const data = await fetchJSON(`/api/write_beat?chapter=${currentChapter}&beat_index=${i}`);
+      const data = await fetchJSON(api(`/write_beat?chapter=${currentChapter}&beat_index=${i}`));
       beatTexts[i] = data.text || "";
       renderWriteBeats(currentBeats, beatTexts);
     }
@@ -886,6 +943,8 @@ async function generateAllBeats() {
 async function writeBeat(beatIndex) {
   if (!currentBeats?.length) return;
 
+  await ensureProject();
+
   openStep("step-5", { scroll: false });
   setStepStatus("step-5", `Writing beat ${beatIndex + 1}...`);
 
@@ -899,9 +958,10 @@ async function writeBeat(beatIndex) {
   }
 
   try {
-    const data = await fetchJSON(`/api/write_beat?chapter=${currentChapter}&beat_index=${beatIndex}`);
+    const data = await fetchJSON(api(`/write_beat?chapter=${currentChapter}&beat_index=${beatIndex}`));
     beatTexts[beatIndex] = data.text || "";
     renderWriteBeats(currentBeats, beatTexts);
+
     await refreshAudioStatusForChapter(currentChapter);
 
     if (beatIndex === currentBeats.length - 1) await buildChapterContinuity(currentChapter);
@@ -932,7 +992,8 @@ async function disableWriteControls(disabled) {
 
 async function buildChapterContinuity(chapterNum) {
   try {
-    await fetchJSON("/api/chapter/continuity", {
+    await ensureProject();
+    await fetchJSON(api("/chapter/continuity"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chapter: chapterNum }),

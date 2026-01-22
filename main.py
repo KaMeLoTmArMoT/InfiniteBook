@@ -88,9 +88,15 @@ async def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-@app.get("/api/state")
-async def api_state(chapter: int = 1):
-    return await store.a_load_state(chapter=chapter)
+@app.get("/projects", response_class=HTMLResponse, include_in_schema=False)
+async def projects_page(request: Request):
+    return templates.TemplateResponse("projects.html", {"request": request})
+
+
+@app.get("/api/projects/{project_id}/state")
+async def api_state(project_id: str, chapter: int = 1):
+    ps = await _require_project(project_id)
+    return await ps.a_load_state(chapter=chapter)
 
 
 @app.get("/reader", response_class=HTMLResponse, include_in_schema=False)
@@ -98,35 +104,66 @@ async def reader(request: Request):
     return templates.TemplateResponse("reader.html", {"request": request})
 
 
-@app.delete("/api/characters/{char_id}")
-async def delete_character(char_id: int):
-    await store.a_delete_character(char_id)
+@app.post("/api/projects/{project_id}/characters")
+async def generate_characters(project_id: str, req: CharactersRequest):
+    ps = await _require_project(project_id)
+    # (same body as before, but replace `store` -> `ps`)
+    chars: CharactersResponse = await call_llm_json(
+        PROMPT_CHARACTERS.format(
+            title=req.title,
+            genre=req.genre,
+            plot_summary=req.plot_summary,
+            hard_rules=HARD_RULES_GENERAL,
+            hard_rules_consistency=HARD_RULES_NO_NEW_MAIN_CHARS,
+            prot_min=CFG.PROTAGONISTS_MIN,
+            prot_max=CFG.PROTAGONISTS_MAX,
+            ant_min=CFG.ANTAGONISTS_MIN,
+            side_min=CFG.SUPPORTING_MIN,
+            side_max=CFG.SUPPORTING_MAX,
+        ),
+        CharactersResponse,
+        temperature=CFG.TEMP_CHARACTERS,
+    )
+    payload = chars.model_dump()
+    await ps.a_save_characters(payload)
+    return payload
+
+
+@app.delete("/api/projects/{project_id}/characters/{char_id}")
+async def delete_character(project_id: str, char_id: int):
+    ps = await _require_project(project_id)
+    await ps.a_delete_character(char_id)
     return {"ok": True}
 
 
-@app.patch("/api/characters/{char_id}")
-async def patch_character(char_id: int, patch: CharacterPatch):
-    updated = await store.a_update_character(char_id, patch.model_dump(exclude_none=True))
+@app.patch("/api/projects/{project_id}/characters/{char_id}")
+async def patch_character(project_id: str, char_id: int, patch: CharacterPatch):
+    ps = await _require_project(project_id)
+    updated = await ps.a_update_character(char_id, patch.model_dump(exclude_none=True))
     return {"ok": True, "character": updated}
 
 
-@app.post("/api/reset")
-async def reset_all():
-    await store.a_reset_all()
+@app.post("/api/projects/{project_id}/reset")
+async def reset_project(project_id: str):
+    await _require_project(project_id)
+    await store.a_reset_all(project_id=project_id)
     return {"ok": True}
 
 
-@app.post("/api/beat/clear")
-async def api_clear_beat(req: ClearBeatRequest):
-    log.info(f"Step 5: Clear beat text. Chapter={req.chapter}, beat_index={req.beat_index}")
-    await store.a_clear_beat_text(req.chapter, req.beat_index)
+@app.post("/api/projects/{project_id}/beat/clear")
+async def api_clear_beat(project_id: str, req: ClearBeatRequest):
+    ps = await _require_project(project_id)
+    log.info(f"Step 5: Clear beat text. Project={project_id}, Chapter={req.chapter}, beat_index={req.beat_index}")
+    await ps.a_clear_beat_text(req.chapter, req.beat_index)
     return {"ok": True}
 
 
-@app.post("/api/beat/clear_from")
-async def api_clear_from(req: ClearFromBeatRequest):
-    log.info(f"Step 5: Clear beat texts from. Chapter={req.chapter}, from_beat_index={req.from_beat_index}")
-    await store.a_clear_beat_texts_from(req.chapter, req.from_beat_index)
+@app.post("/api/projects/{project_id}/beat/clear_from")
+async def api_clear_from(project_id: str, req: ClearFromBeatRequest):
+    ps = await _require_project(project_id)
+    log.info(
+        f"Step 5: Clear beat texts from. Project={project_id}, Chapter={req.chapter}, from_beat_index={req.from_beat_index}")
+    await ps.a_clear_beat_texts_from(req.chapter, req.from_beat_index)
     return {"ok": True}
 
 
@@ -148,9 +185,10 @@ async def refine_idea(req: RefineRequest):
     return {"options": options}
 
 
-@app.post("/api/plot")
-async def generate_plot(req: PlotRequest):
-    log.info(f"Step 2: Generating plot. Title='{req.title}'")
+@app.post("/api/projects/{project_id}/plot")
+async def generate_plot(project_id: str, req: PlotRequest):
+    ps = await _require_project(project_id)
+    log.info(f"Step 2: Generating plot. Project={project_id}, Title='{req.title}'")
 
     prompt = PROMPT_PLOT.format(
         title=req.title,
@@ -163,37 +201,15 @@ async def generate_plot(req: PlotRequest):
 
     plot: PlotResponse = await call_llm_json(prompt, PlotResponse, temperature=CFG.TEMP_PLOT)
     payload = plot.model_dump()
-    await store.a_kv_set("plot", payload)
-    await store.a_kv_set("selected", req.model_dump())
+    await ps.a_kv_set("plot", payload)
+    await ps.a_kv_set("selected", req.model_dump())
     return payload
 
 
-@app.post("/api/characters")
-async def generate_characters(req: CharactersRequest):
-    log.info(f"Step 3: Generating characters. Title='{req.title}'")
-
-    prompt = PROMPT_CHARACTERS.format(
-        title=req.title,
-        genre=req.genre,
-        plot_summary=req.plot_summary,
-        hard_rules=HARD_RULES_GENERAL,
-        hard_rules_consistency=HARD_RULES_NO_NEW_MAIN_CHARS,
-        prot_min=CFG.PROTAGONISTS_MIN,
-        prot_max=CFG.PROTAGONISTS_MAX,
-        ant_min=CFG.ANTAGONISTS_MIN,
-        side_min=CFG.SUPPORTING_MIN,
-        side_max=CFG.SUPPORTING_MAX,
-    )
-
-    chars: CharactersResponse = await call_llm_json(prompt, CharactersResponse, temperature=CFG.TEMP_CHARACTERS)
-    payload = chars.model_dump()
-    await store.a_save_characters(payload)
-    return payload
-
-
-@app.post("/api/chapter_plan")
-async def generate_chapter_plan(req: ChapterPlanRequest):
-    log.info(f"Step 4: Generating chapter beats. Chapter={req.chapter} '{req.chapter_title}'")
+@app.post("/api/projects/{project_id}/chapter_plan")
+async def generate_chapter_plan(project_id: str, req: ChapterPlanRequest):
+    ps = await _require_project(project_id)
+    log.info(f"Step 4: Generating chapter beats. Project={project_id}, Chapter={req.chapter} '{req.chapter_title}'")
 
     if req.characters and isinstance(req.characters[0], dict):
         characters_present = ", ".join([c.get("name", "") for c in req.characters if c.get("name")])
@@ -202,20 +218,22 @@ async def generate_chapter_plan(req: ChapterPlanRequest):
 
     if req.chapter > 1:
         prev = req.chapter - 1
-        if not store.kv_get(f"ch{prev}_continuity"):
-            # best-effort build, ignore failures
+        prev_key = f"ch{prev}_continuity"
+
+        prev_capsule = await ps.a_kv_get(prev_key)
+        if not prev_capsule:
             try:
-                texts = await store.a_get_chapter_beat_texts_ordered(prev)
+                texts = await ps.a_get_chapter_beat_texts_ordered(prev)
                 if texts:
                     prompt = PROMPT_CHAPTER_CONTINUITY.format(chapter_prose="\n\n".join(texts))
                     capsule = await call_llm_json(prompt, ChapterContinuity, temperature=0.2)
-                    await store.a_kv_set(f"ch{prev}_continuity", capsule.model_dump())
+                    await ps.a_kv_set(prev_key, capsule.model_dump())
             except Exception:
                 log.error("Failed to build previous chapter continuity")
                 pass
 
-    prev_cont = await store.a_get_prev_chapter_continuity(req.chapter)
-    prev_excerpt = await store.a_get_prev_chapter_ending_excerpt(req.chapter, max_chars=4500)
+    prev_cont = await ps.a_get_prev_chapter_continuity(req.chapter)
+    prev_excerpt = await ps.a_get_prev_chapter_ending_excerpt(req.chapter, max_chars=4500)
 
     prompt = PROMPT_CHAPTER_BEATS.format(
         title=req.title,
@@ -232,17 +250,16 @@ async def generate_chapter_plan(req: ChapterPlanRequest):
     )
 
     beats: ChapterPlanResponse = await call_llm_json(prompt, ChapterPlanResponse, temperature=CFG.TEMP_BEATS)
-
     payload = beats.model_dump()
-    await store.a_kv_set(f"beats_ch{req.chapter}", payload)
+    await ps.a_kv_set(f"beats_ch{req.chapter}", payload)
     return payload
 
 
-@app.get("/api/write_beat")
-async def write_beat(chapter: int = 1, beat_index: int = 0):
-    log.info(f"Step 5: Writing beat text. Chapter={chapter}, beat_index={beat_index}")
+@app.get("/api/projects/{project_id}/write_beat")
+async def write_beat(project_id: str, chapter: int = 1, beat_index: int = 0):
+    ps = await _require_project(project_id)
 
-    beats_plan = await store.a_kv_get(f"beats_ch{chapter}")
+    beats_plan = await ps.a_kv_get(f"beats_ch{chapter}")
     if not beats_plan or "beats" not in beats_plan:
         return {"error": "No beats plan found. Run Step 4 first."}
 
@@ -250,8 +267,7 @@ async def write_beat(chapter: int = 1, beat_index: int = 0):
     if beat_index < 0 or beat_index >= len(beats):
         return {"error": "Invalid beat_index"}
 
-    ctx = await _build_write_context(store, chapter, beat_index, beats)
-
+    ctx = await _build_write_context(ps, chapter, beat_index, beats)
     cur = beats[beat_index]
     prompt = PROMPT_WRITE_BEAT.format(
         prev_text=ctx["prev_text"],
@@ -264,39 +280,32 @@ async def write_beat(chapter: int = 1, beat_index: int = 0):
         beat_description=cur.get("description", ""),
     )
 
-    log.debug(f"\n{'=' * 20} PROMPT WRITE BEAT (Chapter={chapter}, Beat={beat_index}) {'=' * 20}\n{prompt}\n{'=' * 60}")
+    opts = beat_generation_options(beat_type=cur.get("type", ""), chapter=chapter, beat_index=beat_index)
+    result: WriteBeatResponse = await call_llm_json(prompt, WriteBeatResponse, temperature=CFG.TEMP_BEATS,
+                                                    options_extra=opts)
 
-    opts = beat_generation_options(
-        beat_type=cur.get("type", ""),
-        chapter=chapter,
-        beat_index=beat_index,
-    )
-
-    result: WriteBeatResponse = await call_llm_json(
-        prompt, WriteBeatResponse, temperature=CFG.TEMP_BEATS, options_extra=opts,
-    )
     payload = result.model_dump()
-
-    await store.a_kv_set(f"ch{chapter}_beat_{beat_index}", {"beat_index": beat_index, **payload})
+    await ps.a_kv_set(f"ch{chapter}_beat_{beat_index}", {"beat_index": beat_index, **payload})
     return payload
 
 
-@app.post("/api/chapter/continuity")
-async def build_chapter_continuity(req: BuildContinuityRequest):
-    texts = await store.a_get_chapter_beat_texts_ordered(req.chapter)
+@app.post("/api/projects/{project_id}/chapter/continuity")
+async def build_chapter_continuity(project_id: str, req: BuildContinuityRequest):
+    ps = await _require_project(project_id)
+
+    texts = await ps.a_get_chapter_beat_texts_ordered(req.chapter)
     prose = "\n\n".join(texts).strip()
 
     if not prose:
         empty = ChapterContinuity(bullets=[])
-        await store.a_kv_set(f"ch{req.chapter}_continuity", empty.model_dump())
+        await ps.a_kv_set(f"ch{req.chapter}_continuity", empty.model_dump())
         return empty.model_dump()
 
     prompt = PROMPT_CHAPTER_CONTINUITY.format(chapter_prose=prose)
-
     capsule: ChapterContinuity = await call_llm_json(prompt, ChapterContinuity, temperature=0.2)
 
     payload = capsule.model_dump()
-    await store.a_kv_set(f"ch{req.chapter}_continuity", payload)
+    await ps.a_kv_set(f"ch{req.chapter}_continuity", payload)
     return payload
 
 
@@ -333,20 +342,46 @@ async def websocket_endpoint(websocket: WebSocket):
         print(f"Monitor error: {e}")
 
 
-def _wav_path(chapter: int, beat_index: int) -> Path:
-    return AUDIO_ROOT / f"ch{chapter}" / f"beat{beat_index}.wav"
+def _wav_path(project_id: str, chapter: int, beat_index: int) -> Path:
+    return AUDIO_ROOT / project_id / f"ch{chapter}" / f"beat{beat_index}.wav"
 
 
-@app.get("/api/audio/status")
-async def api_audio_status(chapter: int = 1):
-    st = await store.a_load_state(chapter=chapter)
+async def _require_project(project_id: str):
+    if not await store.a_project_exists(project_id):
+        raise HTTPException(status_code=404, detail="project not found")
+    return store.scoped(project_id)
+
+
+@app.get("/api/projects")
+async def api_projects_list():
+    return {"items": await store.a_list_projects()}
+
+
+@app.post("/api/projects")
+async def api_projects_create(payload: dict):
+    title = (payload.get("title") or "").strip() or "Untitled"
+    proj = await store.a_create_project(title)
+    return {"project": proj}
+
+
+@app.delete("/api/projects/{project_id}")
+async def api_projects_delete(project_id: str):
+    # keep it simple: no delete default, but you can remove that rule later
+    await store.a_delete_project(project_id)
+    return {"ok": True}
+
+
+@app.get("/api/projects/{project_id}/audio/status")
+async def api_audio_status(project_id: str, chapter: int = 1):
+    ps = await _require_project(project_id)
+    st = await ps.a_load_state(chapter=chapter)
     beats = (st.get("beats") or {}).get("beats") or []
     n = len(beats)
 
     items = []
     for idx in range(n):
-        p = _wav_path(chapter, idx)
-        job = AUDIO_JOBS.get((chapter, idx))
+        p = _wav_path(project_id, chapter, idx)
+        job = AUDIO_JOBS.get((project_id, chapter, idx))
 
         if job == "generating":
             status = "generating"
@@ -359,29 +394,32 @@ async def api_audio_status(chapter: int = 1):
             "beat_index": idx,
             "status": status,
             "exists": p.exists(),
-            "url": f"/api/audio/wav?chapter={chapter}&beat_index={idx}" if p.exists() else "",
+            "url": f"/api/projects/{project_id}/audio/wav?chapter={chapter}&beat_index={idx}" if p.exists() else "",
         })
 
-    return {"chapter": chapter, "items": items}
+    return {"project_id": project_id, "chapter": chapter, "items": items}
 
 
-@app.get("/api/audio/wav")
-async def api_audio_wav(chapter: int, beat_index: int):
-    p = _wav_path(chapter, beat_index)
+@app.get("/api/projects/{project_id}/audio/wav")
+async def api_audio_wav(project_id: str, chapter: int, beat_index: int):
+    await _require_project(project_id)
+    p = _wav_path(project_id, chapter, beat_index)
     if not p.exists():
         raise HTTPException(status_code=404, detail="wav not found")
-    return FileResponse(str(p), media_type="audio/wav")  # [web:1355]
+    return FileResponse(str(p), media_type="audio/wav")
 
 
-@app.post("/api/audio/generate")
-async def api_audio_generate(payload: dict, request: Request):
+@app.post("/api/projects/{project_id}/audio/generate")
+async def api_audio_generate(project_id: str, payload: dict, request: Request):
+    ps = await _require_project(project_id)
     tts_provider = request.app.state.tts_provider
+
     chapter = int(payload["chapter"])
     beat_index = int(payload["beat_index"])
     force = bool(payload.get("force", False))
 
-    key = (chapter, beat_index)
-    out_path = _wav_path(chapter, beat_index)
+    key = (project_id, chapter, beat_index)
+    out_path = _wav_path(project_id, chapter, beat_index)
 
     if AUDIO_JOBS.get(key) == "generating":
         return {"ok": True, "status": "generating"}
@@ -389,7 +427,7 @@ async def api_audio_generate(payload: dict, request: Request):
     if (not force) and out_path.exists():
         return {"ok": True, "status": "ready"}
 
-    st = await store.a_load_state(chapter=chapter)
+    st = await ps.a_load_state(chapter=chapter)
     text = (st.get("beat_texts") or {}).get(beat_index, "")
     text = (text or "").strip()
     if not text:
@@ -400,7 +438,7 @@ async def api_audio_generate(payload: dict, request: Request):
     async def _run():
         try:
             out_path.parent.mkdir(parents=True, exist_ok=True)
-            await asyncio.to_thread(tts_provider.write_wav_for_text, text, str(out_path))  # [web:1276]
+            await asyncio.to_thread(tts_provider.write_wav_for_text, text, str(out_path))
             AUDIO_JOBS[key] = "done"
         except Exception:
             AUDIO_JOBS[key] = "error"

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Infinite Book Architect — Projects</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>Projects</h1>
+
+    <details id="step-projects" class="step" open>
+      <summary>
+        <span class="step-title">Select a project</span>
+        <span id="projects-status" class="step-status">Loading...</span>
+      </summary>
+
+      <div class="step-body">
+        <div class="input-group">
+          <input id="new-project-title" type="text" placeholder="New project title" />
+          <button id="btn-create-project">Create</button>
+          <button id="btn-refresh-projects" class="secondary">Refresh</button>
+        </div>
+
+        <div class="loader" id="projects-loader" style="display:none;">Loading projects...</div>
+
+        <div id="projects-grid" class="grid"></div>
+
+        <div style="margin-top:14px; color:#64748b; font-size:0.9rem;">
+          Selected project id: <span id="current-project-id">(none)</span>
+        </div>
+
+        <div class="center-btn-area" style="margin-top:12px;">
+          <button id="btn-open-app" disabled>Open app ➡️</button>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <script src="/static/utils.js"></script>
+  <script src="/static/projects.js"></script>
+</body>
+</html>

@@ -143,7 +143,7 @@ class Beat(BaseModel):
 
 
 class ChapterPlanResponse(BaseModel):
-    beats: List[Beat] = Field(..., min_length=CFG.BEATS_MIN, max_length=CFG.BEATS_MAX)
+    beats: List[Beat] = Field(..., min_length=CFG.BEATS_MIN - 1, max_length=CFG.BEATS_MAX + 3)
 
 
 class CharacterPatch(BaseModel):
