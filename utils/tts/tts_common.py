@@ -19,6 +19,14 @@ def is_boundary(ch: str | None) -> bool:
     return ch is None or not is_word_char(ch)
 
 
+def clean_text(text: str) -> str:
+    """Removes noise characters (*, ~, ^) and collapses whitespace."""
+    # Remove noise characters that disturb TTS
+    text = re.sub(r"[\*~^]", "", text)
+    # Collapse multiple spaces into one
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def split_dialog_spans(text: str) -> list[Span]:
     text = (text or "").replace("\r\n", "\n").replace("\r", "\n")
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
@@ -31,6 +39,7 @@ def split_dialog_spans(text: str) -> list[Span]:
         nonlocal current_kind
         if buf:
             content = "".join(buf)
+            # If we are in narrative mode and see double newlines, split into pauses
             if current_kind == "narr" and "\n\n" in content:
                 parts = content.split("\n\n")
                 for idx, p in enumerate(parts):
@@ -48,6 +57,7 @@ def split_dialog_spans(text: str) -> list[Span]:
         ch = text[i]
         prev = text[i - 1] if i > 0 else None
 
+        # Handle “Smart Quotes”
         if ch == "“":
             flush("dialog")
             start = i
@@ -59,6 +69,7 @@ def split_dialog_spans(text: str) -> list[Span]:
             i += 1
             continue
 
+        # Handle "Standard Quotes"
         if ch == '"':
             if is_boundary(prev):
                 flush("dialog")
@@ -73,6 +84,7 @@ def split_dialog_spans(text: str) -> list[Span]:
                 i += 1
                 continue
 
+        # Handle 'Single Quotes' (careful with apostrophes)
         if ch == "'":
             if is_boundary(prev):
                 j = i + 1
@@ -99,6 +111,7 @@ def split_dialog_spans(text: str) -> list[Span]:
 
     flush("narr")
 
+    # Merge adjacent spans of the same kind
     merged: list[Span] = []
     for s in spans:
         if not s.text:
@@ -108,14 +121,17 @@ def split_dialog_spans(text: str) -> list[Span]:
         else:
             merged.append(s)
 
+    # Final pass: Clean text and filter empty spans
     final: list[Span] = []
     for s in merged:
         if s.kind == "pause":
             final.append(s)
             continue
-        cleaned = re.sub(r"\s+", " ", s.text).strip()
+
+        cleaned = clean_text(s.text)
         if cleaned:
             final.append(Span(s.kind, cleaned))
+
     return final
 
 
