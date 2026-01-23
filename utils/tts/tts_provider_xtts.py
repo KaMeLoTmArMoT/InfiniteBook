@@ -52,7 +52,7 @@ class XttsTtsProvider:
         self.pause_ms = pause_ms
         self.fade_ms = fade_ms
 
-        self.sr = 24000  # XTTS v2 outputs 24khz. [web:1693]
+        self.sr = 24000  # XTTS v2 outputs 24khz.
         self.sw = 2
         self.ch = 1
 

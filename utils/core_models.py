@@ -63,6 +63,9 @@ class AppConfig(BaseSettings):
     PIPER_NARR_MODEL: str = "tts_models/en_US-ryan-high.onnx"
     PIPER_DIALOG_MODEL: str = "tts_models/en_GB-cori-high.onnx"
 
+    GOOGLE_GENAI_API_KEY: str | None = None
+    GOOGLE_GENAI_MODEL: str | None = None
+
 
 CFG = AppConfig()
 

@@ -12,10 +12,8 @@ from utils.core_logger import log
 from utils.core_models import CFG
 from utils.utils import clean_json_response, _json_hint
 
+from google import genai
 
-# =========================
-# Base “model” object
-# =========================
 
 @dataclass
 class GenerateResult:
@@ -155,6 +153,66 @@ class OpenRouterModel:
         return GenerateResult(raw_text=raw, meta=meta)
 
 
+class GoogleGenAIModel:
+    def __init__(self, *, api_key: str, model_name: str, enable_structured: bool = False):
+        self.model_name = model_name
+        self.enable_structured = enable_structured
+        self.client = genai.Client(api_key=api_key)
+
+    async def generate_json(
+            self,
+            prompt: str,
+            schema: dict,
+            *,
+            temperature: float,
+            options: dict | None = None,
+            tag: str = "google",
+    ) -> GenerateResult:
+        # Gemma-3-27b-it: JSON mode is not enabled -> must use prompt-based JSON.
+        p = prompt + _json_hint(schema)
+
+        cfg: dict[str, Any] = {"temperature": temperature}
+        if options:
+            for k in ("max_output_tokens", "top_p", "top_k", "candidate_count"):
+                if k in options:
+                    cfg[k] = options[k]
+
+        # Only enable structured mode if explicitly turned on (useful for Gemini models).
+        if self.enable_structured:
+            cfg["response_mime_type"] = "application/json"
+            cfg["response_json_schema"] = schema
+
+        try:
+            resp = self.client.models.generate_content(
+                model=self.model_name,
+                contents=p,
+                config=cfg,
+            )
+        except Exception as e:
+            # If structured mode is enabled but not supported, retry once without it.
+            msg = str(e)
+            if self.enable_structured and "JSON mode is not enabled" in msg:
+                log.warning("[google] %s json mode unsupported for %s -> retrying without schema", tag, self.model_name)
+                cfg.pop("response_mime_type", None)
+                cfg.pop("response_json_schema", None)
+                resp = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=p,
+                    config=cfg,
+                )
+            else:
+                raise
+
+        raw = (resp.text or "").strip()
+        meta = {
+            "provider": "google",
+            "model": self.model_name,
+            "options": {"temperature": temperature, **(options or {})},
+            "structured_enabled": self.enable_structured,
+        }
+        return GenerateResult(raw_text=raw, meta=meta)
+
+
 class ModelGateway:
     """
     High-level API: hide providers behind `generate_model(...)`.
@@ -239,8 +297,16 @@ def build_model_gateway():
             model_name=CFG.OPENROUTER_PRIMARY_MODEL,
         )
         return ModelGateway("openrouter", impl)
-    else:
-        log.info("Using Ollama default model")
-        ollama_client = AsyncClient()
-        impl = OllamaModel(client=ollama_client, model_name=CFG.MODEL_NAME)
-        return ModelGateway("ollama", impl)
+
+    if CFG.LLM_PROVIDER == "google":
+        log.info("Using Google GenAI model")
+        impl = GoogleGenAIModel(
+            api_key=CFG.GOOGLE_GENAI_API_KEY,
+            model_name=CFG.GOOGLE_GENAI_MODEL,
+        )
+        return ModelGateway("google", impl)
+
+    log.info("Using Ollama default model")
+    ollama_client = AsyncClient()
+    impl = OllamaModel(client=ollama_client, model_name=CFG.MODEL_NAME)
+    return ModelGateway("ollama", impl)

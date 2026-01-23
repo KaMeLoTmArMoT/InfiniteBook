@@ -27,7 +27,7 @@ h1, h2 {
   margin-top: 30px;
 }
 
-/* Accordion steps via <details>/<summary> [web:157] */
+/* Accordion steps via <details>/<summary> */
 .step {
   background: var(--card);
   border-radius: 12px;

@@ -854,9 +854,9 @@ function wireAudioElements(){
     const idx = Number(audioEl.getAttribute("data-audio-el"));
     if (Number.isNaN(idx)) return;
 
-    audioEl.addEventListener("play", () => setBeatAudioStatus(idx, "playing")); // [web:1330]
-    audioEl.addEventListener("pause", () => setBeatAudioStatus(idx, "paused")); // [web:1314]
-    audioEl.addEventListener("ended", () => setBeatAudioStatus(idx, "ready"));  // [web:1315]
+    audioEl.addEventListener("play", () => setBeatAudioStatus(idx, "playing"));
+    audioEl.addEventListener("pause", () => setBeatAudioStatus(idx, "paused"));
+    audioEl.addEventListener("ended", () => setBeatAudioStatus(idx, "ready"));
   });
 }
 

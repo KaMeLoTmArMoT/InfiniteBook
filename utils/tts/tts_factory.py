@@ -27,7 +27,7 @@ def make_tts_provider(cfg):
 async def make_tts_provider_async(cfg):
     log.info("TTS init start provider=%s", cfg.TTS_PROVIDER)
     try:
-        provider = await asyncio.to_thread(make_tts_provider, cfg)  # don't block event loop [web:2033]
+        provider = await asyncio.to_thread(make_tts_provider, cfg)  # don't block event loop
         log.info("TTS init done provider=%s", cfg.TTS_PROVIDER)
         return provider
     except Exception:
