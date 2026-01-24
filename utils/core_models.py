@@ -63,6 +63,10 @@ class AppConfig(BaseSettings):
     PIPER_NARR_MODEL: str = "tts_models/en_US-ryan-high.onnx"
     PIPER_DIALOG_MODEL: str = "tts_models/en_GB-cori-high.onnx"
 
+    QWEN_TTS_URL: str = "http://127.0.0.1:8001"
+    QWEN_MODEL_ID: str = "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"
+    QWEN_DTYPE: str = "float16"
+
     GOOGLE_GENAI_API_KEY: str | None = None
     GOOGLE_GENAI_MODEL: str | None = None
 

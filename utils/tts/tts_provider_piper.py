@@ -1,4 +1,6 @@
 # tts_provider_piper.py
+import time
+
 import wave
 from pathlib import Path
 from piper import PiperVoice, SynthesisConfig
@@ -54,6 +56,7 @@ class PiperTtsProvider:
             if (chunk.sample_rate, chunk.sample_width, chunk.sample_channels) != (sr, sw, ch):
                 raise ValueError("Audio format mismatch")
 
+        t0 = time.perf_counter()
         with wave.open(tmp, "wb") as wf:
             wf.setframerate(sr)
             wf.setsampwidth(sw)
@@ -82,5 +85,6 @@ class PiperTtsProvider:
                     ensure_fmt(chunk)
                     wf.writeframes(chunk.audio_int16_bytes)
 
+        log.info(f"PiperTtsProvider: generated in {time.perf_counter() - t0:.2f}s")
         Path(tmp).replace(out_path)
         return out_path

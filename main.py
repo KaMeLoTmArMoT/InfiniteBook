@@ -12,6 +12,7 @@ from utils.core_models import *
 from utils.models import build_model_gateway
 from utils.prompts import *
 from utils.tts.tts_factory import make_tts_provider_async
+from utils.tts.tts_provider_qwen import QwenTtsProvider
 from utils.utils import *
 from utils.memory_store import MemoryStore
 from utils.utils import _build_write_context
@@ -422,15 +423,18 @@ async def api_audio_generate(project_id: str, payload: dict, request: Request):
     out_path = _wav_path(project_id, chapter, beat_index)
 
     if AUDIO_JOBS.get(key) == "generating":
+        log.info(f"Generating in progress {out_path}")
         return {"ok": True, "status": "generating"}
 
     if (not force) and out_path.exists():
+        log.info(f"Skip generating {out_path}, exists")
         return {"ok": True, "status": "ready"}
 
     st = await ps.a_load_state(chapter=chapter)
     text = (st.get("beat_texts") or {}).get(beat_index, "")
     text = (text or "").strip()
     if not text:
+        log.warning(f"No text for {out_path}")
         raise HTTPException(status_code=400, detail="beat text empty")
 
     AUDIO_JOBS[key] = "generating"
@@ -438,9 +442,17 @@ async def api_audio_generate(project_id: str, payload: dict, request: Request):
     async def _run():
         try:
             out_path.parent.mkdir(parents=True, exist_ok=True)
-            await asyncio.to_thread(tts_provider.write_wav_for_text, text, str(out_path))
+
+            if isinstance(tts_provider, QwenTtsProvider):
+                log.info("Calling QwenTtsProvider asynchronously")
+                await tts_provider.write_wav_for_text(text, str(out_path))
+            else:
+                log.info("Calling TTS provider in thread")
+                await asyncio.to_thread(tts_provider.write_wav_for_text, text, str(out_path))
+
             AUDIO_JOBS[key] = "done"
-        except Exception:
+        except Exception as e:
+            log.warning(f"Error generating audio for {out_path}: {e}")
             AUDIO_JOBS[key] = "error"
 
     asyncio.create_task(_run())

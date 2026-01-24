@@ -1,4 +1,6 @@
 # tts_provider_xtts.py
+import time
+
 import wave
 from pathlib import Path
 import numpy as np
@@ -69,6 +71,7 @@ class XttsTtsProvider:
         Path(out_path).parent.mkdir(parents=True, exist_ok=True)
         tmp = out_path + ".tmp"
 
+        t0 = time.perf_counter()
         with wave.open(tmp, "wb") as wf:
             wf.setframerate(self.sr)
             wf.setsampwidth(self.sw)
@@ -90,5 +93,6 @@ class XttsTtsProvider:
                 wav = apply_fade_in_out(wav, sr=self.sr, fade_ms=self.fade_ms)
                 wf.writeframes(float_to_int16_bytes(wav))
 
+        log.info(f"XttsTtsProvider: generated in {time.perf_counter() - t0:.2f}s")
         Path(tmp).replace(out_path)
         return out_path

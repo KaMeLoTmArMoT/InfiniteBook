@@ -20,9 +20,15 @@ def is_boundary(ch: str | None) -> bool:
 
 
 def clean_text(text: str) -> str:
-    """Removes noise characters (*, ~, ^) and collapses whitespace."""
+    """Removes noise characters (*, ~, ^), removes simple HTML-like tags, and collapses whitespace."""
+    text = text or ""
+
     # Remove noise characters that disturb TTS
     text = re.sub(r"[\*~^]", "", text)
+
+    # Remove simple tags like <i>...</i>, <b>, <br/>, etc. (keep inner text)
+    text = re.sub(r"<[^>]+>", "", text)  # strips tags only
+
     # Collapse multiple spaces into one
     return re.sub(r"\s+", " ", text).strip()
 
