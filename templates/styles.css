@@ -374,3 +374,22 @@ a.secondary-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
+
+button:disabled,
+button[disabled] {
+  opacity: 0.55;
+  filter: grayscale(0.25);
+  background: #94a3b8 !important; /* slate-ish */
+  border-color: #94a3b8 !important;
+  color: rgba(15, 23, 42, 0.65) !important;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* If you have custom hover effects, prevent them when disabled */
+button:disabled:hover,
+button[disabled]:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}

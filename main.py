@@ -1,3 +1,4 @@
+# main.py
 import os
 from contextlib import asynccontextmanager
 
@@ -11,6 +12,7 @@ from utils.core_logger import log
 from utils.core_models import *
 from utils.models import build_model_gateway
 from utils.prompts import *
+from utils.tts.audio_store import *
 from utils.tts.tts_factory import make_tts_provider_async
 from utils.tts.tts_provider_qwen import QwenTtsProvider
 from utils.utils import *
@@ -38,6 +40,7 @@ async def lifespan(app: FastAPI):
 
     async def _init_tts():
         try:
+            app.state.tts_provider_key = CFG.TTS_PROVIDER
             app.state.tts_provider = await make_tts_provider_async(CFG)
             app.state.tts_ready.set()
         except Exception as e:
@@ -59,9 +62,6 @@ store = MemoryStore("infinitebook.sqlite")
 
 app.mount("/static", StaticFiles(directory="templates"), name="static")
 templates = Jinja2Templates(directory="templates")
-
-AUDIO_JOBS = {}
-AUDIO_ROOT = Path("data/wavs")
 
 
 # --- ASYNC OLLAMA HELPER ---
@@ -96,7 +96,7 @@ async def projects_page(request: Request):
 
 @app.get("/api/projects/{project_id}/state")
 async def api_state(project_id: str, chapter: int = 1):
-    ps = await _require_project(project_id)
+    ps = await require_project(store, project_id)
     return await ps.a_load_state(chapter=chapter)
 
 
@@ -107,7 +107,7 @@ async def reader(request: Request):
 
 @app.post("/api/projects/{project_id}/characters")
 async def generate_characters(project_id: str, req: CharactersRequest):
-    ps = await _require_project(project_id)
+    ps = await require_project(store, project_id)
     # (same body as before, but replace `store` -> `ps`)
     chars: CharactersResponse = await call_llm_json(
         PROMPT_CHARACTERS.format(
@@ -132,28 +132,28 @@ async def generate_characters(project_id: str, req: CharactersRequest):
 
 @app.delete("/api/projects/{project_id}/characters/{char_id}")
 async def delete_character(project_id: str, char_id: int):
-    ps = await _require_project(project_id)
+    ps = await require_project(store, project_id)
     await ps.a_delete_character(char_id)
     return {"ok": True}
 
 
 @app.patch("/api/projects/{project_id}/characters/{char_id}")
 async def patch_character(project_id: str, char_id: int, patch: CharacterPatch):
-    ps = await _require_project(project_id)
+    ps = await require_project(store, project_id)
     updated = await ps.a_update_character(char_id, patch.model_dump(exclude_none=True))
     return {"ok": True, "character": updated}
 
 
 @app.post("/api/projects/{project_id}/reset")
 async def reset_project(project_id: str):
-    await _require_project(project_id)
+    await require_project(store, project_id)
     await store.a_reset_all(project_id=project_id)
     return {"ok": True}
 
 
 @app.post("/api/projects/{project_id}/beat/clear")
 async def api_clear_beat(project_id: str, req: ClearBeatRequest):
-    ps = await _require_project(project_id)
+    ps = await require_project(store, project_id)
     log.info(f"Step 5: Clear beat text. Project={project_id}, Chapter={req.chapter}, beat_index={req.beat_index}")
     await ps.a_clear_beat_text(req.chapter, req.beat_index)
     return {"ok": True}
@@ -161,7 +161,7 @@ async def api_clear_beat(project_id: str, req: ClearBeatRequest):
 
 @app.post("/api/projects/{project_id}/beat/clear_from")
 async def api_clear_from(project_id: str, req: ClearFromBeatRequest):
-    ps = await _require_project(project_id)
+    ps = await require_project(store, project_id)
     log.info(
         f"Step 5: Clear beat texts from. Project={project_id}, Chapter={req.chapter}, from_beat_index={req.from_beat_index}")
     await ps.a_clear_beat_texts_from(req.chapter, req.from_beat_index)
@@ -188,7 +188,7 @@ async def refine_idea(req: RefineRequest):
 
 @app.post("/api/projects/{project_id}/plot")
 async def generate_plot(project_id: str, req: PlotRequest):
-    ps = await _require_project(project_id)
+    ps = await require_project(store, project_id)
     log.info(f"Step 2: Generating plot. Project={project_id}, Title='{req.title}'")
 
     prompt = PROMPT_PLOT.format(
@@ -209,7 +209,7 @@ async def generate_plot(project_id: str, req: PlotRequest):
 
 @app.post("/api/projects/{project_id}/chapter_plan")
 async def generate_chapter_plan(project_id: str, req: ChapterPlanRequest):
-    ps = await _require_project(project_id)
+    ps = await require_project(store, project_id)
     log.info(f"Step 4: Generating chapter beats. Project={project_id}, Chapter={req.chapter} '{req.chapter_title}'")
 
     if req.characters and isinstance(req.characters[0], dict):
@@ -258,7 +258,7 @@ async def generate_chapter_plan(project_id: str, req: ChapterPlanRequest):
 
 @app.get("/api/projects/{project_id}/write_beat")
 async def write_beat(project_id: str, chapter: int = 1, beat_index: int = 0):
-    ps = await _require_project(project_id)
+    ps = await require_project(store, project_id)
 
     beats_plan = await ps.a_kv_get(f"beats_ch{chapter}")
     if not beats_plan or "beats" not in beats_plan:
@@ -292,7 +292,7 @@ async def write_beat(project_id: str, chapter: int = 1, beat_index: int = 0):
 
 @app.post("/api/projects/{project_id}/chapter/continuity")
 async def build_chapter_continuity(project_id: str, req: BuildContinuityRequest):
-    ps = await _require_project(project_id)
+    ps = await require_project(store, project_id)
 
     texts = await ps.a_get_chapter_beat_texts_ordered(req.chapter)
     prose = "\n\n".join(texts).strip()
@@ -343,16 +343,6 @@ async def websocket_endpoint(websocket: WebSocket):
         print(f"Monitor error: {e}")
 
 
-def _wav_path(project_id: str, chapter: int, beat_index: int) -> Path:
-    return AUDIO_ROOT / project_id / f"ch{chapter}" / f"beat{beat_index}.wav"
-
-
-async def _require_project(project_id: str):
-    if not await store.a_project_exists(project_id):
-        raise HTTPException(status_code=404, detail="project not found")
-    return store.scoped(project_id)
-
-
 @app.get("/api/projects")
 async def api_projects_list():
     return {"items": await store.a_list_projects()}
@@ -374,61 +364,75 @@ async def api_projects_delete(project_id: str):
 
 @app.get("/api/projects/{project_id}/audio/status")
 async def api_audio_status(project_id: str, chapter: int = 1):
-    ps = await _require_project(project_id)
+    ps = await require_project(store, project_id)
     st = await ps.a_load_state(chapter=chapter)
     beats = (st.get("beats") or {}).get("beats") or []
     n = len(beats)
 
     items = []
     for idx in range(n):
-        p = _wav_path(project_id, chapter, idx)
-        job = AUDIO_JOBS.get((project_id, chapter, idx))
+        for provider in TTS_PROVIDERS:
+            p = wav_path(project_id, provider, chapter, idx)
+            key = job_key(project_id, chapter, idx, provider)
+            job = AUDIO_JOBS.get(key)
 
-        if job == "generating":
-            status = "generating"
-        elif job == "error":
-            status = "error"
-        else:
-            status = "ready" if p.exists() else "missing"
+            if job == "generating":
+                status = "generating"
+            elif job == "error":
+                status = "error"
+            else:
+                status = "ready" if p.exists() else "missing"
 
-        items.append({
-            "beat_index": idx,
-            "status": status,
-            "exists": p.exists(),
-            "url": f"/api/projects/{project_id}/audio/wav?chapter={chapter}&beat_index={idx}" if p.exists() else "",
-        })
+            items.append({
+                "beat_index": idx,
+                "provider": provider,
+                "status": status,
+                "exists": p.exists(),
+                "url": wav_url(project_id, provider, chapter, idx) if p.exists() else "",
+            })
 
     return {"project_id": project_id, "chapter": chapter, "items": items}
 
 
 @app.get("/api/projects/{project_id}/audio/wav")
-async def api_audio_wav(project_id: str, chapter: int, beat_index: int):
-    await _require_project(project_id)
-    p = _wav_path(project_id, chapter, beat_index)
+async def api_audio_wav(project_id: str, chapter: int, beat_index: int, provider: str):
+    await require_project(store, project_id)
+    provider = norm_provider(provider)
+
+    p = wav_path(project_id, provider, chapter, beat_index)
     if not p.exists():
         raise HTTPException(status_code=404, detail="wav not found")
+
     return FileResponse(str(p), media_type="audio/wav")
 
 
 @app.post("/api/projects/{project_id}/audio/generate")
 async def api_audio_generate(project_id: str, payload: dict, request: Request):
-    ps = await _require_project(project_id)
-    tts_provider = request.app.state.tts_provider
+    ps = await require_project(store, project_id)
 
     chapter = int(payload["chapter"])
     beat_index = int(payload["beat_index"])
     force = bool(payload.get("force", False))
+    provider = norm_provider(payload.get("provider"))
 
-    key = (project_id, chapter, beat_index)
-    out_path = _wav_path(project_id, chapter, beat_index)
+    # Single loaded provider instance
+    tts_provider = request.app.state.tts_provider
+
+    # Enforce "only active provider can generate"
+    active_key = getattr(request.app.state, "tts_provider_key", None)
+    if active_key and active_key != provider:
+        raise HTTPException(status_code=409, detail=f"provider '{provider}' not loaded (active: {active_key})")
+
+    key = job_key(project_id, chapter, beat_index, provider)
+    out_path = wav_path(project_id, provider, chapter, beat_index)
 
     if AUDIO_JOBS.get(key) == "generating":
         log.info(f"Generating in progress {out_path}")
-        return {"ok": True, "status": "generating"}
+        return {"ok": True, "status": "generating", "provider": provider}
 
     if (not force) and out_path.exists():
         log.info(f"Skip generating {out_path}, exists")
-        return {"ok": True, "status": "ready"}
+        return {"ok": True, "status": "ready", "provider": provider}
 
     st = await ps.a_load_state(chapter=chapter)
     text = (st.get("beat_texts") or {}).get(beat_index, "")
@@ -444,10 +448,8 @@ async def api_audio_generate(project_id: str, payload: dict, request: Request):
             out_path.parent.mkdir(parents=True, exist_ok=True)
 
             if isinstance(tts_provider, QwenTtsProvider):
-                log.info("Calling QwenTtsProvider asynchronously")
                 await tts_provider.write_wav_for_text(text, str(out_path))
             else:
-                log.info("Calling TTS provider in thread")
                 await asyncio.to_thread(tts_provider.write_wav_for_text, text, str(out_path))
 
             AUDIO_JOBS[key] = "done"
@@ -456,7 +458,7 @@ async def api_audio_generate(project_id: str, payload: dict, request: Request):
             AUDIO_JOBS[key] = "error"
 
     asyncio.create_task(_run())
-    return {"ok": True, "status": "generating"}
+    return {"ok": True, "status": "generating", "provider": provider}
 
 
 if __name__ == "__main__":

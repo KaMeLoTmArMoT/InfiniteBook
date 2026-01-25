@@ -1,3 +1,5 @@
+let __lastTtsProvidersText = null;
+
 function connectMonitor() {
   const protocol = window.location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${protocol}://${window.location.host}/ws/monitor`);
@@ -33,7 +35,17 @@ function updateMonitorUI(data) {
   const ttsEl = document.getElementById("tts-providers");
   if (ttsEl) {
     const ps = data.providers?.tts || [];
-    ttsEl.innerText = ps.length ? ps.join(", ") : "None";
+    const next = ps.length ? ps.join(", ") : "None";
+
+    const changed = next !== __lastTtsProvidersText;
+    ttsEl.innerText = next;
+
+    if (changed) {
+      __lastTtsProvidersText = next;
+      if (typeof window.onTtsProvidersChanged === "function") {
+        window.onTtsProvidersChanged();
+      }
+    }
   }
 
   const cpu = data.cpu;

@@ -54,7 +54,87 @@ let currentCharacters = null;
 let currentChapter = 1;      // 1-based
 let currentBeats = null;     // beats array for current chapter
 let beatTexts = {};          // { idx: text } for current chapter (0-based)
+
+// =======================
+// AUDIO UI v2 (multi TTS)
+// =======================
+
+const TTS_PROVIDERS = [
+  { key: "piper", label: "Piper" },
+  { key: "xtts", label: "XTTS" },
+  { key: "qwen", label: "Qwen" },
+];
+
+// beatAudio[idx][provider] = { exists, status, url }
 let beatAudio = {};
+
+function getActiveTtsProvider() {
+  const el = $("#tts-providers");
+  const raw = (el?.textContent || "").toLowerCase();
+
+  // Look for the first known provider name anywhere in the text
+  const known = ["piper", "xtts", "qwen"];
+  for (const k of known) {
+    if (raw.includes(k)) return k;
+  }
+  return null;
+}
+
+function getBeatAudio(idx, provider) {
+  if (!beatAudio[idx]) beatAudio[idx] = {};
+  if (!beatAudio[idx][provider]) {
+    beatAudio[idx][provider] = { exists: false, status: "missing", url: "" };
+  }
+  return beatAudio[idx][provider];
+}
+
+function setBeatAudioStatus(idx, provider, status, patch = {}) {
+  if (!beatAudio[idx]) beatAudio[idx] = {};
+  beatAudio[idx][provider] = { ...getBeatAudio(idx, provider), ...patch, status };
+  updateBeatAudioRowUI(idx);
+}
+
+function updateBeatAudioRowUI(idx) {
+  const row = $(`#write-beat-row-${idx}`);
+  if (!row) return;
+
+  const active = getActiveTtsProvider();
+
+  TTS_PROVIDERS.forEach((p) => {
+    const st = getBeatAudio(idx, p.key);
+
+    const genBtn = $(`button[data-audio-generate="${idx}"][data-tts-provider="${p.key}"]`, row);
+    const stEl = $(`span[data-audio-status="${idx}"][data-tts-provider="${p.key}"]`, row);
+    const audioEl = $(`audio[data-audio-el="${idx}"][data-tts-provider="${p.key}"]`, row);
+
+    if (genBtn) {
+      genBtn.textContent = st.exists ? "Regenerate" : "Generate";
+      genBtn.disabled = !(active && active === p.key);
+    }
+
+    // If audio exists: show only audio (no "ready" label)
+    if (stEl) {
+      if (st.exists) {
+        stEl.style.display = "none";
+      } else {
+        stEl.style.display = "inline";
+        stEl.textContent = st.status || "missing";
+      }
+    }
+
+    if (audioEl) {
+      const hasAudio = !!(st.exists && st.url);
+      audioEl.style.display = hasAudio ? "block" : "none";
+      if (hasAudio && audioEl.src !== st.url) audioEl.src = st.url;
+    }
+  });
+}
+
+window.onTtsProvidersChanged = function () {
+  // re-enable/disable Generate buttons based on newly-known active provider
+  if (!currentBeats?.length) return;
+  currentBeats.forEach((_, idx) => updateBeatAudioRowUI(idx));
+};
 
 /* ========= Boot ========= */
 document.addEventListener("DOMContentLoaded", () => {
@@ -173,10 +253,11 @@ async function loadChapterState(chapterNum, { open = false } = {}) {
     renderBeats(currentBeats);
 
     beatTexts = normalizeBeatTextsKeys(state.beat_texts || {});
-    renderWriteBeats(currentBeats, beatTexts);
-
     beatAudio = {};
     await refreshAudioStatusForChapter(chapterNum);
+
+    // Re-render so audio elements appear when audio exists
+    renderWriteBeats(currentBeats, beatTexts);
 
     setStep5Enabled(true);
     updatePlanButtonUI();
@@ -241,10 +322,10 @@ async function loadStateOnStart() {
       renderBeats(currentBeats);
 
       beatTexts = normalizeBeatTextsKeys(state.beat_texts || {});
-      renderWriteBeats(currentBeats, beatTexts);
-
       beatAudio = {};
       await refreshAudioStatusForChapter(currentChapter);
+
+      renderWriteBeats(currentBeats, beatTexts);
 
       setStep5Enabled(true);
       setStepStatus("step-5", "Ready");
@@ -282,85 +363,86 @@ function firstUnwrittenIndex() {
   return null;
 }
 
-function getBeatAudio(idx){
-  if (!beatAudio[idx]) beatAudio[idx] = { exists: false, status: "missing", url: "" };
-  return beatAudio[idx];
-}
-
-function setBeatAudioStatus(idx, status, patch = {}){
-  beatAudio[idx] = { ...getBeatAudio(idx), ...patch, status };
-  updateBeatAudioRowUI(idx);
-}
-
-function updateBeatAudioRowUI(idx){
-  const row = $(`#write-beat-row-${idx}`);
-  if (!row) return;
-
-  const stEl = $(`[data-audio-status="${idx}"]`, row);
-  const genBtn = $(`button[data-audio-generate="${idx}"]`, row);
-  const playBtn = $(`button[data-audio-play="${idx}"]`, row);
-  const audioEl = $(`audio[data-audio-el="${idx}"]`, row);
-
-  const st = getBeatAudio(idx);
-
-  if (stEl) stEl.textContent = st.status;
-  if (genBtn) genBtn.textContent = (st.exists ? "Regenerate" : "Generate");
-  if (playBtn) playBtn.disabled = !(st.exists && st.url);
-
-  // keep <audio> src in sync if we have one
-  if (audioEl && st.url && audioEl.src !== st.url) audioEl.src = st.url;
-
-  if (playBtn && audioEl){
-    playBtn.textContent = audioEl.paused ? "Play" : "Pause";
-  }
-}
-
-async function refreshAudioStatusForChapter(chapterNum){
+async function refreshAudioStatusForChapter(chapterNum) {
   if (!currentBeats?.length) return;
-
   await ensureProject();
+
+  // Ensure defaults exist for every beat/provider
+  currentBeats.forEach((_, idx) => {
+    TTS_PROVIDERS.forEach((p) => getBeatAudio(idx, p.key));
+  });
 
   const res = await fetchJSON(api(`/audio/status?chapter=${chapterNum}`));
   const items = res?.items || [];
+
+  // If any item transitions missing->exists, we must re-render to create <audio> nodes
+  let needRerender = false;
 
   items.forEach((it) => {
     const idx = Number(it.beat_index);
     if (Number.isNaN(idx)) return;
 
-    // backend returns absolute path like /api/projects/{pid}/audio/wav?... already
-    const rel = it.url || (it.exists ? api(`/audio/wav?chapter=${chapterNum}&beat_index=${idx}`) : "");
+    const provider = (it.provider || it.tts_provider || "").toLowerCase();
+    if (!provider) return;
+
+    const rel =
+      it.url ||
+      (it.exists ? api(`/audio/wav?chapter=${chapterNum}&beat_index=${idx}&provider=${provider}`) : "");
     const abs = rel ? new URL(rel, window.location.href).href : "";
 
-    beatAudio[idx] = {
-      exists: !!it.exists,
-      status: it.status || (it.exists ? "ready" : "missing"),
+    const prev = getBeatAudio(idx, provider);
+    const nextExists = !!it.exists;
+
+    if (!prev.exists && nextExists) needRerender = true;
+
+    beatAudio[idx][provider] = {
+      exists: nextExists,
+      status: it.status || (nextExists ? "ready" : "missing"),
       url: abs,
     };
   });
 
+  if (needRerender) {
+    renderWriteBeats(currentBeats, beatTexts);
+    return;
+  }
+
   currentBeats.forEach((_, idx) => updateBeatAudioRowUI(idx));
 }
 
-function startAudioPoll(chapterNum, beatIdx){
-  let tries = 0;
-  const t = setInterval(async () => {
-    tries++;
-    try{
-      await refreshAudioStatusForChapter(chapterNum);
+let _audioPollTimer = null;
+let _audioPollInFlight = false;
+let _audioPollChapter = null;
 
-      const st = getBeatAudio(beatIdx)?.status;
-      if (st === "ready" || st === "error" || tries > 120) { // ~60s at 500ms
-        clearInterval(t);
-      }
-    } catch(_){
-      // ignore, keep trying a bit
-      if (tries > 10) clearInterval(t);
-    }
-  }, 3000);
-
-  return () => clearInterval(t);
+function stopAudioPoll() {
+  if (_audioPollTimer) clearInterval(_audioPollTimer);
+  _audioPollTimer = null;
+  _audioPollChapter = null;
 }
 
+function startAudioPoll(chapterNum) {
+  // already polling this chapter
+  if (_audioPollTimer && _audioPollChapter === chapterNum) return;
+
+  stopAudioPoll();
+  _audioPollChapter = chapterNum;
+
+  _audioPollTimer = setInterval(async () => {
+    if (_audioPollInFlight) return;
+    _audioPollInFlight = true;
+    try {
+      await refreshAudioStatusForChapter(chapterNum);
+
+      // stop when nothing is generating
+      const stillGenerating = Object.values(beatAudio).some((perBeat) =>
+        Object.values(perBeat || {}).some((st) => st?.status === "generating")
+      );
+      if (!stillGenerating) stopAudioPoll();
+    } finally {
+      _audioPollInFlight = false;
+    }
+  }, 3000);
+}
 
 /* ========= Chapter navigation ========= */
 async function gotoChapter(chapterNum) {
@@ -627,10 +709,9 @@ async function planCurrentChapter() {
     show("#beats-container", true);
 
     renderBeats(currentBeats);
-    renderWriteBeats(currentBeats, beatTexts);
-
     beatAudio = {};
     await refreshAudioStatusForChapter(currentChapter);
+    renderWriteBeats(currentBeats, beatTexts);
 
     setStepStatus("step-4", `Done (Ch ${currentChapter})`);
     setStepStatus("step-5", `Ready`);
@@ -684,28 +765,68 @@ function renderWriteBeats(beats, textsByIdx) {
     const isWritten = txt.trim().length > 0;
     const safeText = highlightDialogueToHtml(txt);
 
-    const a = getBeatAudio(idx);
-    // For now: only show audio controls when there is text.
-    // Later backend will set a.exists/a.url even before written (if you want).
-    const showAudio = isWritten;
+    const active = getActiveTtsProvider();
+    const anyAudioExists = TTS_PROVIDERS.some((p) => {
+      const st = getBeatAudio(idx, p.key);
+      return !!(st.exists && st.url);
+    });
+    const showAudioBlock = isWritten || anyAudioExists;
 
-    const audioControlsHtml = showAudio ? `
-      <div class="audio-controls" style="margin-top:10px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-        <button data-audio-generate="${idx}" style="background:#0ea5e9;">
-          ${a.exists ? "Regenerate" : "Generate"}
-        </button>
-    
-        <button data-audio-play="${idx}" class="secondary" ${!(a.exists && a.url) ? "disabled" : ""}>
-          Play
-        </button>
-    
-        <span data-audio-status="${idx}" style="font-size:0.85rem; color:#64748b;">
-          ${a.status || "missing"}
-        </span>
-    
-        <audio data-audio-el="${idx}" controls controlslist="nodownload" preload="metadata" style="width:320px; height:32px;"></audio>
-      </div>
-    ` : "";
+    const audioControlsHtml = showAudioBlock
+      ? `
+        <div class="tts-block" style="margin-top:10px; display:flex; flex-direction:column; gap:8px;">
+          ${TTS_PROVIDERS.map((p) => {
+            const st = getBeatAudio(idx, p.key);
+            const isActive = active === p.key;
+            const hasAudio = !!(st.exists && st.url);
+
+            // If we have audio: show audio controls, and show Regenerate only for active provider.
+            if (hasAudio) {
+              return `
+                <div class="tts-row" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                  <span style="min-width:72px; font-size:0.85rem; color:#64748b;">${p.label}</span>
+                  ${
+                    isActive
+                      ? `<button data-audio-generate="${idx}" data-tts-provider="${p.key}" style="background:#0ea5e9;">Regenerate</button>`
+                      : ``
+                  }
+                  <audio
+                    data-audio-el="${idx}"
+                    data-tts-provider="${p.key}"
+                    controls
+                    controlslist="nodownload"
+                    preload="metadata"
+                    style="width:320px; height:32px; display:none;"
+                  ></audio>
+                </div>
+              `;
+            }
+
+            // If missing/error/generating: show Generate button (disabled if not active) and a status label.
+            const disabledAttr = isActive ? "" : "disabled";
+            const statusText = st.status || "missing";
+
+            return `
+              <div class="tts-row" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <span style="min-width:72px; font-size:0.85rem; color:#64748b;">${p.label}</span>
+                <button
+                  data-audio-generate="${idx}"
+                  data-tts-provider="${p.key}"
+                  ${disabledAttr}
+                  style="background:#0ea5e9;"
+                  title="${isActive ? "" : "This TTS provider is not loaded"}"
+                >Generate</button>
+                <span
+                  data-audio-status="${idx}"
+                  data-tts-provider="${p.key}"
+                  style="font-size:0.85rem; color:${statusText === "error" ? "#ef4444" : "#64748b"};"
+                >${statusText}</span>
+              </div>
+            `;
+          }).join("")}
+        </div>
+      `
+      : "";
 
     wrap.innerHTML += `
       <div class="beat-item" id="write-beat-row-${idx}">
@@ -736,8 +857,8 @@ function renderWriteBeats(beats, textsByIdx) {
       </div>
     `;
   });
+
   beats.forEach((_, idx) => updateBeatAudioRowUI(idx));
-  wireAudioElements();
 }
 
 function wireWriteBeatDelegation() {
@@ -752,60 +873,26 @@ function wireWriteBeatDelegation() {
     if (clearFromBtn) return clearFrom(Number(clearFromBtn.getAttribute("data-clear-from")));
 
     const genAudioBtn = event.target.closest("button[data-audio-generate]");
-    if (genAudioBtn){
+    if (genAudioBtn) {
       const idx = Number(genAudioBtn.getAttribute("data-audio-generate"));
-      if (Number.isNaN(idx)) return;
+      const provider = (genAudioBtn.getAttribute("data-tts-provider") || "").toLowerCase();
+      if (Number.isNaN(idx) || !provider) return;
 
-        setBeatAudioStatus(idx, "generating", { exists: false, url: "" });
+      setBeatAudioStatus(idx, provider, "generating", { exists: false, url: "" });
 
-        try{
-          // force regenerate if already exists (your button says Regenerate)
-          const force = !!getBeatAudio(idx)?.exists;
+      try {
+        const force = !!getBeatAudio(idx, provider)?.exists;
 
-          await fetchJSON(api("/audio/generate"), {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chapter: currentChapter, beat_index: idx, force }),
-          });
-
-          // start polling until ready/error
-          startAudioPoll(currentChapter, idx);
-        } catch (e){
-          console.error(e);
-          setBeatAudioStatus(idx, "error", { exists: false, url: "" });
-        }
-        return;
-    }
-
-    const playAudioBtn = event.target.closest("button[data-audio-play]");
-    if (playAudioBtn){
-      const idx = Number(playAudioBtn.getAttribute("data-audio-play"));
-      if (Number.isNaN(idx)) return;
-
-      const row = $(`#write-beat-row-${idx}`);
-      const audioEl = row ? $(`audio[data-audio-el="${idx}"]`, row) : null;
-      if (!audioEl) return;
-
-      const st = getBeatAudio(idx);
-      if (!st.exists || !st.url){
-        setBeatAudioStatus(idx, "missing");
-        return;
-      }
-
-      if (audioEl.src !== st.url) audioEl.src = st.url;
-
-      if (!audioEl.paused){
-        audioEl.pause();
-        return;
-      }
-
-      const p = audioEl.play();
-      if (p && typeof p.catch === "function"){
-        p.catch((e) => {
-          // AbortError happens if playback/load was interrupted (often not a real error)
-          if (e && e.name === "AbortError") return;
-          setBeatAudioStatus(idx, "error");
+        await fetchJSON(api("/audio/generate"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chapter: currentChapter, beat_index: idx, provider, force }),
         });
+
+        startAudioPoll(currentChapter);
+      } catch (e) {
+        console.error(e);
+        setBeatAudioStatus(idx, provider, "error", { exists: false, url: "" });
       }
       return;
     }
@@ -844,20 +931,6 @@ async function clearBeat(idx) {
   } finally {
     await disableWriteControls(false);
   }
-}
-
-function wireAudioElements(){
-  $$("audio[data-audio-el]").forEach((audioEl) => {
-    if (audioEl.__wired) return;
-    audioEl.__wired = true;
-
-    const idx = Number(audioEl.getAttribute("data-audio-el"));
-    if (Number.isNaN(idx)) return;
-
-    audioEl.addEventListener("play", () => setBeatAudioStatus(idx, "playing"));
-    audioEl.addEventListener("pause", () => setBeatAudioStatus(idx, "paused"));
-    audioEl.addEventListener("ended", () => setBeatAudioStatus(idx, "ready"));
-  });
 }
 
 async function clearFrom(fromIdx) {
