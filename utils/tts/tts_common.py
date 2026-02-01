@@ -1,6 +1,181 @@
 # tts_common.py
 import re
 from dataclasses import dataclass
+from num2words import num2words
+
+from utils.core_models import CFG
+
+try:  # 2. OPTIONAL DEPENDENCY: transliterate
+    from transliterate import translit
+
+    HAS_TRANSLIT = True
+except ImportError:
+    HAS_TRANSLIT = False
+
+
+def get_symbol_map(lang: str) -> dict:
+    """Returns the symbol map for the specified language."""
+    # Common symbols shared across most Latin/Cyrillic langs
+    base_map = {
+        '&': ' and ',
+        '@': ' at ',
+        '=': ' equals ',
+        '+': ' plus ',
+        '§': ' paragraph ',
+    }
+
+    if lang.startswith('ru'):
+        return {
+            '$': ' долларов ',
+            '€': ' евро ',
+            '£': ' фунтов ',
+            '%': ' процентов ',
+            '&': ' и ',
+            '+': ' плюс ',
+            '=': ' равно ',
+            '@': ' собака ',
+            '#': ' номер ',
+            '№': ' номер ',
+            '§': ' параграф ',
+        }
+    elif lang.startswith('uk'):  # Ukrainian
+        return {
+            '$': ' доларів ',
+            '€': ' євро ',
+            '£': ' фунтів ',
+            '%': ' відсотків ',
+            '&': ' та ',
+            '+': ' плюс ',
+            '=': ' дорівнює ',
+            '@': ' собака ',
+            '#': ' номер ',
+            '№': ' номер ',
+            '§': ' параграф ',
+        }
+    elif lang.startswith('de'):  # German
+        return {
+            '$': ' Dollar ',
+            '€': ' Euro ',
+            '£': ' Pfund ',
+            '%': ' Prozent ',
+            '&': ' und ',
+            '+': ' plus ',
+            '=': ' gleich ',
+            '@': ' at ',
+            '#': ' Nummer ',
+            '№': ' Nummer ',
+            '§': ' Paragraf ',
+        }
+    else:  # Default to English
+        return {
+            '$': ' dollars ',
+            '€': ' euros ',
+            '£': ' pounds ',
+            '%': ' percent ',
+            '&': ' and ',
+            '+': ' plus ',
+            '=': ' equals ',
+            '@': ' at ',
+            '#': ' number ',
+            '№': ' number ',
+            '§': ' section ',
+        }
+
+
+class TextNormalizer:
+    """
+    Production-ready text normalizer for TTS.
+    Integrates cleaning, symbol expansion, number conversion, and whitespace collapsing.
+    Mandatory: num2words.
+    Optional: transliterate (if installed and enabled).
+    """
+
+    def __init__(self, lang: str = CFG.XTTS_LANGUAGE, use_translit: bool = False):
+        self.lang = lang
+        # Auto-disable translit for non-cyrillic targets to avoid errors
+        self.use_translit = use_translit and HAS_TRANSLIT and lang in ['ru', 'uk', 'bg', 'sr']
+
+        # Load language-specific symbol map
+        self.symbol_map = get_symbol_map(lang)
+
+    def _basic_clean(self, text: str) -> str:
+        """Removes noise characters and HTML tags."""
+        # Remove noise characters that disturb TTS (*, ~, ^)
+        text = re.sub(r"[\*~^]", "", text)
+
+        # Remove simple tags like <i>...</i>, <b>, <br/>, etc. (keep inner text)
+        text = re.sub(r"<[^>]+>", "", text)
+
+        return text
+
+    def _transliterate(self, text: str) -> str:
+        """Converts Latin -> Cyrillic if enabled and supported."""
+        if self.use_translit:
+            try:
+                # Transliterate usually expects a target language code
+                return translit(text, self.lang)
+            except Exception:
+                return text
+        return text
+
+    def _expand_numbers(self, text: str) -> str:
+        """
+        Converts numbers to words (e.g., '5.' -> 'five.').
+        Uses 'cardinal' type by default via num2words.
+        """
+
+        def replace_num(match):
+            num_str = match.group()
+            try:
+                return num2words(num_str, lang=self.lang)
+            except Exception:
+                return num_str
+
+        # Regex looks for numbers, preserving punctuation (commas/dots)
+        return re.sub(r'\b\d+(?:[.,]\d+)?\b', replace_num, text)
+
+    def normalize(self, text: str) -> str:
+        """
+        Main entry point. Returns a single normalized string.
+        Does NOT split into sentences.
+        """
+        if not text:
+            return ""
+
+        # 1. Basic cleaning (HTML, noise)
+        text = self._basic_clean(text)
+
+        # 2. Latin to Cyrillic (Optional, mostly for RU/UK)
+        text = self._transliterate(text)
+
+        # 3. Expand Symbols (Critical step before numbers)
+        for sym, word in self.symbol_map.items():
+            text = text.replace(sym, word)
+
+        # 4. Fix Duplicates (e.g., "number number" -> "number")
+        text = re.sub(r'\b(\w+)\s+\1\b', r'\1', text, flags=re.I)
+
+        # 5. Standardize Dashes & Quotes
+        text = re.sub(r'[«»„“”]', '"', text)
+        text = re.sub(r'^\s*[—\-–•]\s*', '', text)  # Start of line
+        text = re.sub(r'\s+[—\-–•]+\s+', ', ', text)  # Mid-sentence
+
+        # 6. Ellipsis to Comma
+        text = text.replace('...', ', ').replace('..', ', ').replace('…', ', ')
+
+        # 7. Expand Numbers
+        text = self._expand_numbers(text)
+
+        # 8. Final Polish (Whitespace & Punctuation)
+        text = re.sub(r'\s+', ' ', text)
+        text = re.sub(r'\s+([.,!?;:])', r'\1', text)  # "word ." -> "word."
+        text = re.sub(r',\s*,', ',', text)  # ", ," -> ","
+
+        return text.strip()
+
+
+# Instantiate a default normalizer using the config language
+_default_normalizer = TextNormalizer(lang=CFG.XTTS_LANGUAGE, use_translit=False)
 
 
 @dataclass(frozen=True)
@@ -19,21 +194,11 @@ def is_boundary(ch: str | None) -> bool:
     return ch is None or not is_word_char(ch)
 
 
-def clean_text(text: str) -> str:
-    """Removes noise characters (*, ~, ^), removes simple HTML-like tags, and collapses whitespace."""
-    text = text or ""
-
-    # Remove noise characters that disturb TTS
-    text = re.sub(r"[\*~^]", "", text)
-
-    # Remove simple tags like <i>...</i>, <b>, <br/>, etc. (keep inner text)
-    text = re.sub(r"<[^>]+>", "", text)  # strips tags only
-
-    # Collapse multiple spaces into one
-    return re.sub(r"\s+", " ", text).strip()
-
-
 def split_dialog_spans(text: str) -> list[Span]:
+    """
+    Splits text into narrative and dialog spans, and applies
+    full text normalization using the global default language.
+    """
     text = (text or "").replace("\r\n", "\n").replace("\r", "\n")
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
 
@@ -90,7 +255,7 @@ def split_dialog_spans(text: str) -> list[Span]:
                 i += 1
                 continue
 
-        # Handle 'Single Quotes' (careful with apostrophes)
+        # Handle 'Single Quotes'
         if ch == "'":
             if is_boundary(prev):
                 j = i + 1
@@ -127,14 +292,15 @@ def split_dialog_spans(text: str) -> list[Span]:
         else:
             merged.append(s)
 
-    # Final pass: Clean text and filter empty spans
+    # Final pass: Normalize text and filter empty spans
     final: list[Span] = []
     for s in merged:
         if s.kind == "pause":
             final.append(s)
             continue
 
-        cleaned = clean_text(s.text)
+        # INTEGRATION: Use global TextNormalizer instance
+        cleaned = _default_normalizer.normalize(s.text)
         if cleaned:
             final.append(Span(s.kind, cleaned))
 
