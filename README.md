@@ -20,7 +20,7 @@ Infinite Book Architect is a FastAPI + vanilla JS app for generating a complete 
 It supports multiple LLM providers behind a small gateway (local Ollama by default, OpenRouter for free cloud models).
 
 <p align="center">
-  <img src="assets/main.png" width="720" alt="Main UI">
+  <img src="docs/main.png" width="720" alt="Main UI">
 </p>
 
 ### Key Features
@@ -100,7 +100,7 @@ Notes:
 5. Step 5: Write beat prose (Write Next / Generate All).
 
 <p align="center">
-  <img src="assets/beats.png" width="720" alt="Chapter Beats + Write UI">
+  <img src="docs/beats.png" width="720" alt="Chapter Beats + Write UI">
 </p>
 
 ## TTS demo (same text, 2 engines)
