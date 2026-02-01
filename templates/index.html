@@ -12,6 +12,9 @@
       <header class="app-header">
           <div class="header-branding">
               <h1>Infinite Book Architect</h1>
+              <div class="project-meta">
+                  Language: <span id="project-language">...</span>
+              </div>
           </div>
 
           <a href="/projects" class="secondary secondary-btn">
@@ -32,11 +35,14 @@
       </summary>
 
       <div class="step-body">
-        <div class="input-group">
-          <input type="text" id="genre" placeholder="Genre (e.g. Cyberpunk)" value="Cyberpunk" />
-          <input type="text" id="idea" placeholder="Idea (e.g. Hacker finds a ghost)" value="A hacker finds a ghost in the server" />
-          <button id="btn-refine">Refine ✨</button>
-        </div>
+          <div class="input-group idea-row-1">
+              <input type="text" id="genre" placeholder="Genre (e.g. Cyberpunk)" value="__IBA_DEFAULT__"/>
+              <button id="btn-refine">Refine ✨</button>
+          </div>
+
+          <div class="input-group idea-row-2">
+              <textarea id="idea" rows="6">__IBA_DEFAULT__</textarea>
+          </div>
 
         <div class="loader" id="loader-1">Brainstorming variations...</div>
         <div class="grid" id="variations-grid"></div>
@@ -73,7 +79,7 @@
       </summary>
 
       <div class="step-body">
-        <h2>Dramatis Personae</h2>
+        <h2>Characters</h2>
         <div class="loader" id="loader-3">Casting roles...</div>
 
         <div id="chars-container" style="display:none;">

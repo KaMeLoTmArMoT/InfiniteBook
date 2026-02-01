@@ -190,3 +190,13 @@ def beat_generation_options(*, beat_type: str, chapter: int, beat_index: int) ->
 async def get_cpu_status_async():
     cpu = await asyncio.to_thread(psutil.cpu_percent, 0.2)
     return {"cpu_load": cpu}
+
+LANG_LABELS = {
+    "en": "English",
+    "ru": "Russian",
+    "de": "German",
+}
+
+def lang_label(code: str | None) -> str:
+    c = (code or "").strip().lower()
+    return LANG_LABELS.get(c, "English")

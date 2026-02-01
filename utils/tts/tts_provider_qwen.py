@@ -130,8 +130,8 @@ class QwenTtsProvider:
         self._api = None
         self._loaded = False
 
-    async def write_wav_for_text(self, text: str, out_path: str) -> str:
-        spans = split_dialog_spans(text)
+    async def write_wav_for_text(self, text: str, out_path: str, project_lang_code: str) -> str:
+        spans = split_dialog_spans(text, project_lang_code)
         if not spans:
             raise ValueError("No text/spans")
 

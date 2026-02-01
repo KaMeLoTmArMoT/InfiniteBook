@@ -33,9 +33,15 @@ class MemoryStore:
                 CREATE TABLE IF NOT EXISTS projects (
                     id TEXT PRIMARY KEY,
                     title TEXT NOT NULL,
+                    language TEXT NOT NULL DEFAULT 'en',
                     created_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
                 )
             """)
+
+            # --- migration: add language column to existing DBs
+            cols = {r[1] for r in con.execute("PRAGMA table_info(projects)").fetchall()}
+            if "language" not in cols:
+                con.execute("ALTER TABLE projects ADD COLUMN language TEXT NOT NULL DEFAULT 'en'")
 
             # Composite PK ensures uniqueness per-project
             con.execute("""
@@ -65,8 +71,8 @@ class MemoryStore:
 
             # Ensure a default project exists (keeps existing endpoints working)
             con.execute(
-                "INSERT OR IGNORE INTO projects(id, title) VALUES (?, ?)",
-                (DEFAULT_PROJECT_ID, "Default"),
+                "INSERT OR IGNORE INTO projects(id, title, language) VALUES (?, ?, ?)",
+                (DEFAULT_PROJECT_ID, "Default", "en"),
             )
             con.commit()
 
@@ -76,8 +82,14 @@ class MemoryStore:
     async def a_init_db(self) -> None:
         await anyio.to_thread.run_sync(self.init_db)
 
-    async def a_create_project(self, title: str) -> Dict[str, Any]:
-        return await anyio.to_thread.run_sync(self.create_project, title)
+    async def a_create_project(self, title: str, language: str) -> Dict[str, Any]:
+        return await anyio.to_thread.run_sync(self.create_project, title, language)
+
+    async def a_get_project(self, project_id: str) -> Optional[Dict[str, Any]]:
+        return await anyio.to_thread.run_sync(self.get_project, project_id)
+
+    async def a_get_project_language(self, project_id: str) -> str:
+        return await anyio.to_thread.run_sync(self.get_project_language, project_id)
 
     async def a_list_projects(self) -> List[Dict[str, Any]]:
         return await anyio.to_thread.run_sync(self.list_projects)
@@ -152,19 +164,41 @@ class MemoryStore:
     # -------------------------
     # Project ops (sync)
     # -------------------------
-    def create_project(self, title: str) -> Dict[str, Any]:
+    def create_project(self, title: str, language: str) -> Dict[str, Any]:
         project_id = uuid.uuid4().hex
         with self._connect() as con:
-            con.execute("INSERT INTO projects(id, title) VALUES(?, ?)", (project_id, title))
+            con.execute(
+                "INSERT INTO projects(id, title, language) VALUES(?, ?, ?)",
+                (project_id, title, language),
+            )
             con.commit()
-        return {"id": project_id, "title": title}
+        return {"id": project_id, "title": title, "language": language}
+
+    def get_project(self, project_id: str) -> Optional[Dict[str, Any]]:
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT id, title, language, created_at FROM projects WHERE id = ? LIMIT 1",
+                (project_id,),
+            ).fetchone()
+        if not row:
+            return None
+        return {"id": row[0], "title": row[1], "language": row[2], "created_at": row[3]}
+
+    def get_project_language(self, project_id: str) -> str:
+        with self._connect() as con:
+            row = con.execute(
+                "SELECT language FROM projects WHERE id = ? LIMIT 1",
+                (project_id,),
+            ).fetchone()
+        lang = (row[0] if row else "") or "en"
+        return str(lang).strip().lower() or "en"
 
     def list_projects(self) -> List[Dict[str, Any]]:
         with self._connect() as con:
             rows = con.execute(
-                "SELECT id, title, created_at FROM projects ORDER BY created_at DESC"
+                "SELECT id, title, language, created_at FROM projects ORDER BY created_at DESC"
             ).fetchall()
-        return [{"id": r[0], "title": r[1], "created_at": r[2]} for r in rows]
+        return [{"id": r[0], "title": r[1], "language": r[2], "created_at": r[3]} for r in rows]
 
     def delete_project(self, project_id: str) -> None:
         if project_id == DEFAULT_PROJECT_ID:

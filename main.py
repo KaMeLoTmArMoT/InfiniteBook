@@ -28,6 +28,8 @@ if os.name == "nt":
     log.info(f"Setting WindowsSelectorEventLoopPolicy for asyncio on Windows")
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
+SUPPORTED_PROJECT_LANGS = {"en", "ru", "de"}
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -108,8 +110,10 @@ async def reader(request: Request):
 @app.post("/api/projects/{project_id}/characters")
 async def generate_characters(project_id: str, req: CharactersRequest):
     ps = await require_project(store, project_id)
+    project_lang_code = await store.a_get_project_language(project_id)
+    project_language = lang_label(project_lang_code)
     # (same body as before, but replace `store` -> `ps`)
-    chars: CharactersResponse = await call_llm_json(
+    chars = await call_llm_json(
         PROMPT_CHARACTERS.format(
             title=req.title,
             genre=req.genre,
@@ -121,6 +125,7 @@ async def generate_characters(project_id: str, req: CharactersRequest):
             ant_min=CFG.ANTAGONISTS_MIN,
             side_min=CFG.SUPPORTING_MIN,
             side_max=CFG.SUPPORTING_MAX,
+            language=project_language,
         ),
         CharactersResponse,
         temperature=CFG.TEMP_CHARACTERS,
@@ -168,15 +173,18 @@ async def api_clear_from(project_id: str, req: ClearFromBeatRequest):
     return {"ok": True}
 
 
-@app.post("/api/refine")
-async def refine_idea(req: RefineRequest):
-    log.info(f"Step 1: Refining idea. Genre='{req.genre}'")
+@app.post("/api/projects/{project_id}/refine")
+async def refine_idea(project_id: str, req: RefineRequest):
+    log.info(f"Step 1: Refining idea. Genre='{req.genre}', Idea='{req.idea}', Project={project_id}")
+    project_lang_code = await store.a_get_project_language(project_id)
+    project_language = lang_label(project_lang_code)
 
     prompt = PROMPT_REFINE.format(
         genre=req.genre,
         idea=req.idea,
         hard_rules=HARD_RULES_GENERAL,
         n_variations=CFG.REFINE_VARIATIONS,
+        language=project_language,
     )
 
     refined: RefineResponse = await call_llm_json(prompt, RefineResponse, temperature=CFG.TEMP_REFINE)
@@ -189,6 +197,8 @@ async def refine_idea(req: RefineRequest):
 @app.post("/api/projects/{project_id}/plot")
 async def generate_plot(project_id: str, req: PlotRequest):
     ps = await require_project(store, project_id)
+    project_lang_code = await store.a_get_project_language(project_id)
+    project_language = lang_label(project_lang_code)
     log.info(f"Step 2: Generating plot. Project={project_id}, Title='{req.title}'")
 
     prompt = PROMPT_PLOT.format(
@@ -198,6 +208,7 @@ async def generate_plot(project_id: str, req: PlotRequest):
         hard_rules=HARD_RULES_GENERAL,
         chapters_min=CFG.PLOT_CHAPTERS_MIN,
         chapters_max=CFG.PLOT_CHAPTERS_MAX,
+        language=project_language,
     )
 
     plot: PlotResponse = await call_llm_json(prompt, PlotResponse, temperature=CFG.TEMP_PLOT)
@@ -210,6 +221,8 @@ async def generate_plot(project_id: str, req: PlotRequest):
 @app.post("/api/projects/{project_id}/chapter_plan")
 async def generate_chapter_plan(project_id: str, req: ChapterPlanRequest):
     ps = await require_project(store, project_id)
+    project_lang_code = await store.a_get_project_language(project_id)
+    project_language = lang_label(project_lang_code)
     log.info(f"Step 4: Generating chapter beats. Project={project_id}, Chapter={req.chapter} '{req.chapter_title}'")
 
     if req.characters and isinstance(req.characters[0], dict):
@@ -226,7 +239,10 @@ async def generate_chapter_plan(project_id: str, req: ChapterPlanRequest):
             try:
                 texts = await ps.a_get_chapter_beat_texts_ordered(prev)
                 if texts:
-                    prompt = PROMPT_CHAPTER_CONTINUITY.format(chapter_prose="\n\n".join(texts))
+                    prompt = PROMPT_CHAPTER_CONTINUITY.format(
+                        chapter_prose="\n\n".join(texts),
+                        language=project_language,
+                    )
                     capsule = await call_llm_json(prompt, ChapterContinuity, temperature=0.2)
                     await ps.a_kv_set(prev_key, capsule.model_dump())
             except Exception:
@@ -248,6 +264,7 @@ async def generate_chapter_plan(project_id: str, req: ChapterPlanRequest):
         hard_rules_consistency=HARD_RULES_NO_NEW_MAIN_CHARS,
         beats_min=CFG.BEATS_MIN,
         beats_max=CFG.BEATS_MAX,
+        language=project_language,
     )
 
     beats: ChapterPlanResponse = await call_llm_json(prompt, ChapterPlanResponse, temperature=CFG.TEMP_BEATS)
@@ -259,6 +276,8 @@ async def generate_chapter_plan(project_id: str, req: ChapterPlanRequest):
 @app.get("/api/projects/{project_id}/write_beat")
 async def write_beat(project_id: str, chapter: int = 1, beat_index: int = 0):
     ps = await require_project(store, project_id)
+    project_lang_code = await store.a_get_project_language(project_id)
+    project_language = lang_label(project_lang_code)
 
     beats_plan = await ps.a_kv_get(f"beats_ch{chapter}")
     if not beats_plan or "beats" not in beats_plan:
@@ -279,10 +298,11 @@ async def write_beat(project_id: str, chapter: int = 1, beat_index: int = 0):
         beat_number=beat_index + 1,
         beat_type=cur.get("type", ""),
         beat_description=cur.get("description", ""),
+        language=project_language,
     )
 
     opts = beat_generation_options(beat_type=cur.get("type", ""), chapter=chapter, beat_index=beat_index)
-    result: WriteBeatResponse = await call_llm_json(prompt, WriteBeatResponse, temperature=CFG.TEMP_BEATS,
+    result = await call_llm_json(prompt, WriteBeatResponse, temperature=CFG.TEMP_BEATS,
                                                     options_extra=opts)
 
     payload = result.model_dump()
@@ -293,6 +313,8 @@ async def write_beat(project_id: str, chapter: int = 1, beat_index: int = 0):
 @app.post("/api/projects/{project_id}/chapter/continuity")
 async def build_chapter_continuity(project_id: str, req: BuildContinuityRequest):
     ps = await require_project(store, project_id)
+    project_lang_code = await store.a_get_project_language(project_id)
+    project_language = lang_label(project_lang_code)
 
     texts = await ps.a_get_chapter_beat_texts_ordered(req.chapter)
     prose = "\n\n".join(texts).strip()
@@ -302,8 +324,11 @@ async def build_chapter_continuity(project_id: str, req: BuildContinuityRequest)
         await ps.a_kv_set(f"ch{req.chapter}_continuity", empty.model_dump())
         return empty.model_dump()
 
-    prompt = PROMPT_CHAPTER_CONTINUITY.format(chapter_prose=prose)
-    capsule: ChapterContinuity = await call_llm_json(prompt, ChapterContinuity, temperature=0.2)
+    prompt = PROMPT_CHAPTER_CONTINUITY.format(
+        chapter_prose=prose,
+        language=project_language,
+    )
+    capsule = await call_llm_json(prompt, ChapterContinuity, temperature=0.2)
 
     payload = capsule.model_dump()
     await ps.a_kv_set(f"ch{req.chapter}_continuity", payload)
@@ -351,7 +376,12 @@ async def api_projects_list():
 @app.post("/api/projects")
 async def api_projects_create(payload: dict):
     title = (payload.get("title") or "").strip() or "Untitled"
-    proj = await store.a_create_project(title)
+
+    language = (payload.get("language") or "en").strip().lower()
+    if language not in SUPPORTED_PROJECT_LANGS:
+        language = "en"
+
+    proj = await store.a_create_project(title, language)
     return {"project": proj}
 
 
@@ -409,6 +439,8 @@ async def api_audio_wav(project_id: str, chapter: int, beat_index: int, provider
 @app.post("/api/projects/{project_id}/audio/generate")
 async def api_audio_generate(project_id: str, payload: dict, request: Request):
     ps = await require_project(store, project_id)
+    project_lang_code = await store.a_get_project_language(project_id)
+    project_language = lang_label(project_lang_code)
 
     chapter = int(payload["chapter"])
     beat_index = int(payload["beat_index"])
@@ -448,9 +480,9 @@ async def api_audio_generate(project_id: str, payload: dict, request: Request):
             out_path.parent.mkdir(parents=True, exist_ok=True)
 
             if isinstance(tts_provider, QwenTtsProvider):
-                await tts_provider.write_wav_for_text(text, str(out_path))
+                await tts_provider.write_wav_for_text(text, str(out_path), project_lang_code)
             else:
-                await asyncio.to_thread(tts_provider.write_wav_for_text, text, str(out_path))
+                await asyncio.to_thread(tts_provider.write_wav_for_text, text, str(out_path), project_lang_code)
 
             AUDIO_JOBS[key] = "done"
         except Exception as e:

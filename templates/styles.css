@@ -393,3 +393,37 @@ button[disabled]:hover {
   transform: none !important;
   box-shadow: none !important;
 }
+
+.header-branding {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.project-meta {
+  font-size: 0.85rem;
+  color: #64748b;
+  line-height: 1.1;
+}
+
+.idea-row-1 input#genre {
+  flex: 1;
+  min-width: 220px;
+}
+
+.idea-row-2 {
+  margin-top: 10px;
+}
+
+/* Make textarea match inputs */
+.input-group textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.35;
+  resize: vertical;
+}

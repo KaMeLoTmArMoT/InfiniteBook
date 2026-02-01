@@ -15,15 +15,6 @@ except ImportError:
 
 def get_symbol_map(lang: str) -> dict:
     """Returns the symbol map for the specified language."""
-    # Common symbols shared across most Latin/Cyrillic langs
-    base_map = {
-        '&': ' and ',
-        '@': ' at ',
-        '=': ' equals ',
-        '+': ' plus ',
-        '§': ' paragraph ',
-    }
-
     if lang.startswith('ru'):
         return {
             '$': ' долларов ',
@@ -82,6 +73,17 @@ def get_symbol_map(lang: str) -> dict:
         }
 
 
+def canon_lang(code: str | None) -> str:
+    c = (code or "").strip().lower()
+    if c.startswith("ru"):
+        return "ru"
+    if c.startswith("uk"):
+        return "uk"
+    if c.startswith("de"):
+        return "de"
+    return "en"
+
+
 class TextNormalizer:
     """
     Production-ready text normalizer for TTS.
@@ -90,13 +92,11 @@ class TextNormalizer:
     Optional: transliterate (if installed and enabled).
     """
 
-    def __init__(self, lang: str = CFG.XTTS_LANGUAGE, use_translit: bool = False):
-        self.lang = lang
-        # Auto-disable translit for non-cyrillic targets to avoid errors
-        self.use_translit = use_translit and HAS_TRANSLIT and lang in ['ru', 'uk', 'bg', 'sr']
-
-        # Load language-specific symbol map
-        self.symbol_map = get_symbol_map(lang)
+    def __init__(self, lang: str = "en", use_translit: bool = False):
+        self._want_translit = bool(use_translit)  # remember user intent
+        self.lang = canon_lang(lang)
+        self.use_translit = self._want_translit and HAS_TRANSLIT and self.lang in ["ru", "uk"]
+        self.symbol_map = get_symbol_map(self.lang)
 
     def _basic_clean(self, text: str) -> str:
         """Removes noise characters and HTML tags."""
@@ -134,13 +134,21 @@ class TextNormalizer:
         # Regex looks for numbers, preserving punctuation (commas/dots)
         return re.sub(r'\b\d+(?:[.,]\d+)?\b', replace_num, text)
 
-    def normalize(self, text: str) -> str:
+    def _update_params(self, project_lang_code: str):
+        new_lang = canon_lang(project_lang_code)
+        if new_lang != self.lang:
+            self.lang = new_lang
+            self.symbol_map = get_symbol_map(self.lang)
+            self.use_translit = self._want_translit and HAS_TRANSLIT and self.lang in ["ru", "uk"]
+
+    def normalize(self, text: str, project_lang_code: str) -> str:
         """
         Main entry point. Returns a single normalized string.
         Does NOT split into sentences.
         """
         if not text:
             return ""
+        self._update_params(project_lang_code)
 
         # 1. Basic cleaning (HTML, noise)
         text = self._basic_clean(text)
@@ -174,8 +182,8 @@ class TextNormalizer:
         return text.strip()
 
 
-# Instantiate a default normalizer using the config language
-_default_normalizer = TextNormalizer(lang=CFG.XTTS_LANGUAGE, use_translit=False)
+# TODO: replace with per-lang cache or per-request instance if concurrency becomes an issue.
+_default_normalizer = TextNormalizer(lang="en", use_translit=False)
 
 
 @dataclass(frozen=True)
@@ -194,7 +202,7 @@ def is_boundary(ch: str | None) -> bool:
     return ch is None or not is_word_char(ch)
 
 
-def split_dialog_spans(text: str) -> list[Span]:
+def split_dialog_spans(text: str, project_lang_code: str) -> list[Span]:
     """
     Splits text into narrative and dialog spans, and applies
     full text normalization using the global default language.
@@ -300,7 +308,7 @@ def split_dialog_spans(text: str) -> list[Span]:
             continue
 
         # INTEGRATION: Use global TextNormalizer instance
-        cleaned = _default_normalizer.normalize(s.text)
+        cleaned = _default_normalizer.normalize(s.text, canon_lang(project_lang_code))
         if cleaned:
             final.append(Span(s.kind, cleaned))
 

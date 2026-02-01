@@ -72,25 +72,25 @@ async function loadProjects() {
 
 async function createProject() {
   const titleEl = $("#new-project-title");
-  const title = (titleEl?.value || "").trim() || "Untitled";
+  const langEl = $("#new-project-language");
+
+  const title = titleEl?.value?.trim() || "Untitled";
+  const language = (langEl?.value || "en").toLowerCase();
 
   setStatus("Creating...");
   try {
     const res = await fetchJSON("/api/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({ title, language }),
     });
 
     const p = res?.project;
     if (!p?.id) throw new Error("Invalid create response");
 
     if (titleEl) titleEl.value = "";
-
-    // select & persist
-    localStorage.setItem("ib_project_id", p.id);
+    localStorage.setItem("ib:project:id", p.id);
     setSelected(p);
-
     await loadProjects();
     setStatus("Created");
   } catch (e) {

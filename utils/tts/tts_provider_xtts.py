@@ -61,8 +61,8 @@ class XttsTtsProvider:
     def _pick_speaker(self, kind: str) -> str:
         return self.dialog_voice if kind == "dialog" else self.narr_voice
 
-    def write_wav_for_text(self, text: str, out_path: str) -> str:
-        spans = split_dialog_spans(text)
+    def write_wav_for_text(self, text: str, out_path: str, project_lang_code: str) -> str:
+        spans = split_dialog_spans(text, project_lang_code)
         log.debug("Spans: %s", spans)
         if not spans:
             raise ValueError("No text/spans")

@@ -46,6 +46,93 @@ const setDisabled = (sel, disabled, root = document) => {
 };
 const setDisabledMany = (sels, disabled, root = document) => sels.forEach((s) => setDisabled(s, disabled, root));
 
+const DEFAULT_SENTINEL = "__IBA_DEFAULT__";
+
+function languageLabel(code) {
+  const m = { en: "English", ru: "Русский", de: "Deutsch" };
+  return m[code] || (code ? code : "—");
+}
+
+function isDefaultSentinel(v) {
+  return (v || "").trim() === DEFAULT_SENTINEL;
+}
+
+function seedByLang(code) {
+  const c = (code || "en").toLowerCase();
+
+  if (c === "ru") {
+    return {
+      genre: "Киберпанк, нуарный триллер",
+      idea:
+        "Герой: Лина Коваль, инженер по инцидентам в мегакорпорации.\n" +
+        "Цель: вычислить взломщика памяти до сбоя городской сети.\n" +
+        "Противодействие: корпоративная зачистка + странный ИИ в уличной рекламе.\n" +
+        "Сеттинг/тон: Берлин будущего; неон-нуар, напряжённо.\n" +
+        "Твист: логи показывают Лину на месте преступления — неделя стёрта."
+    };
+  }
+
+  if (c === "de") {
+    return {
+      genre: "Cyberpunk Noir Thriller",
+      idea:
+        "Heldin: Lina Koval, Incident-Response-Engineer bei einem Megakonzern.\n" +
+        "Ziel: Einen Memory-Hacker enttarnen, bevor das Stadt-Netz kollabiert.\n" +
+        "Gegner: Corporate Cleanup Squad + eine KI in Straßenwerbung.\n" +
+        "Setting/Ton: Berlin der Zukunft; Neon-Noir, angespannt, geerdet.\n" +
+        "Twist: Ihre Logs zeigen sie am Tatort — eine Woche Erinnerung fehlt."
+    };
+  }
+
+  // en default
+  return {
+    genre: "Cyberpunk noir thriller",
+    idea:
+      "Hero: Lina Koval, incident responder at a megacorp.\n" +
+      "Goal: Expose a memory-hacker before the city grid crashes.\n" +
+      "Opposition: Corp cleanup squad + a strange AI in street ads.\n" +
+      "Setting/Tone: Near-future Berlin; neon-noir, tense, grounded.\n" +
+      "Twist: Lina’s own logs show she was at the crime scene—missing a week of memory."
+  };
+}
+
+function applySeedIfDefault(langCode) {
+  const genreEl = $("#genre");
+  const ideaEl = $("#idea");
+  if (!genreEl || !ideaEl) return;
+
+  // Only seed if BOTH fields are still defaults.
+  // This prevents overwriting user input or values restored from DB state. [file:227]
+  if (!isDefaultSentinel(genreEl.value) || !isDefaultSentinel(ideaEl.value)) return;
+
+  const seed = seedByLang(langCode);
+  genreEl.value = seed.genre;
+  ideaEl.value = seed.idea;
+}
+
+async function refreshProjectLanguageUI() {
+  const el = $("#project-language");
+  if (!el) return "en";
+
+  try {
+    const res = await fetchJSON("/api/projects");
+    const items = res?.items || [];
+
+    const pid = projectId || localStorage.getItem("ib:project:id");
+    const proj = items.find((x) => x.id === pid) || items[0];
+
+    const lang = (proj?.language || "en").toLowerCase();
+    el.textContent = languageLabel(lang);
+
+    applySeedIfDefault(lang);
+    return lang;
+  } catch (e) {
+    console.warn("Failed to load project language", e);
+    el.textContent = "—";
+    return "en";
+  }
+}
+
 /* ========= State ========= */
 let selectedData = null;
 let currentPlotData = null;
@@ -170,6 +257,7 @@ document.addEventListener("DOMContentLoaded", () => {
   wireWriteBeatDelegation();
 
   loadStateOnStart();
+  refreshProjectLanguageUI();
   connectMonitor();
 });
 
@@ -472,7 +560,7 @@ async function refineIdea() {
   setDisabled("#btn-refine", true);
 
   try {
-    const data = await fetchJSON("/api/refine", {
+    const data = await fetchJSON(api("/refine"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ genre, idea }),

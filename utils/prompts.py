@@ -21,12 +21,13 @@ You are a professional story editor.
 
 Task: Generate exactly {n_variations} distinct variations of the user's story premise.
 
+Target Language: {language}
 Genre: {genre}
 Idea: {idea}
 
 Guidance:
 - Range: Classic -> Unexpected.
-- Each variation should be a compelling book blurb.
+- Each variation should be a compelling book blurb in {language}.
 - Highlight the central conflict and specific stakes (what happens if they fail?).
 - Keep it concise, punchy, and coherent.
 
@@ -40,6 +41,7 @@ You are a professional story architect.
 
 Create a chapter outline for a novel.
 
+Target Language: {language}
 Title: {title}
 Genre: {genre}
 Premise: {description}
@@ -48,6 +50,7 @@ Structure requirements:
 - {chapters_min}-{chapters_max} chapters total.
 - Follow: Setup -> Inciting Incident -> Rising Action -> Climax -> Resolution.
 - Each chapter must have: number, title, summary.
+- All titles and summaries must be written in {language}.
 
 CRITICAL PLOT RULES:
 - Continuous Narrative: This is ONE continuous story, not an anthology. 
@@ -62,6 +65,7 @@ Return JSON only that matches the schema.
 PROMPT_CHARACTERS = """\
 You are a novelist building a cast bible.
 
+Target Language: {language}
 Title: {title}
 Genre: {genre}
 
@@ -69,6 +73,7 @@ Plot context:
 {plot_summary}
 
 Requirements:
+- Output all character details (names can be native, but descriptions/goals must be in {language}).
 - {prot_min}-{prot_max} protagonists. Include: Goal, Flaw, and a specific physical mannerism/tic.
 - {ant_min} antagonist with a clear opposing goal.
 - {side_min}-{side_max} supporting characters. Include: Relationship to protagonist.
@@ -83,6 +88,7 @@ Return JSON only that matches the schema.
 PROMPT_CHAPTER_BEATS = """\
 You are a story editor writing a detailed beat sheet.
 
+Target Language: {language}
 Book title: {title}
 Genre: {genre}
 Chapter title: {chapter_title}
@@ -90,7 +96,7 @@ Chapter summary: {chapter_summary}
 Characters present: {characters_present}
 
 Requirements:
-- Produce {beats_min}-{beats_max} beats.
+- Produce {beats_min}-{beats_max} beats in {language}.
 - Mix pacing: Dialogue, Action, Description, Internal Monologue.
 - Cause -> effect progression across beats.
 - STAGE BUSINESS: Ensure characters are doing physical tasks while interacting. No "talking heads" in a void.
@@ -112,6 +118,9 @@ You are a lead novelist for a gritty, high-stakes thriller.
 
 ### TASK
 Write the prose for **Beat {beat_number}** ({beat_type}).
+
+### TARGET LANGUAGE
+**{language}** (All output text must be in this language).
 
 ### CONTEXT
 **PREVIOUS TEXT (Already Written):**
@@ -151,6 +160,7 @@ When continuing a story across chapters, continuity must be preserved unless the
 3.  **NEGATIVE CONSTRAINTS (BANNED WORDS):**
     * **Strictly forbidden:** "shiver down spine", "air thickened", "unseen hand", "cacophony", "labyrinthine", "neon" (use specific colors instead), "pulsing energy", "moths to a flame".
     * **No filter words:** Avoid "He saw", "She felt", "He heard". Describe the thing seen/felt/heard directly.
+    * *Note: If writing in non-English, avoid equivalent clichés in {language}.*
 
 4.  **STAGE BUSINESS:**
     * Characters must **DO** things while talking (lighting a cigarette, checking a weapon, cleaning glasses). No "talking heads" in a void.
@@ -167,6 +177,7 @@ When continuing a story across chapters, continuity must be preserved unless the
 - If this beat is Dialogue-heavy: include 3–8 separate dialogue lines with interruptions, overlaps, and subtext.
 - Otherwise: optionally inject 1–3 quick lines of dialogue if it improves realism.
 - Dialogue must be grounded with physical action (stage business) while speaking.
+- Dialogue language: {language}.
 
 ### OUTPUT FORMAT
 Return JSON ONLY. No markdown, no pre-text.
@@ -176,13 +187,15 @@ Return JSON ONLY. No markdown, no pre-text.
 PROMPT_CHAPTER_CONTINUITY = """
 You are an editor creating a short continuity capsule for the next chapter planning.
 
+Target Language: {language}
+
 Return JSON ONLY with:
 {{
   "bullets": ["...", "..."]
 }}
 
 Rules:
-- 10 to 20 bullets.
+- 10 to 20 bullets in {language}.
 - Each bullet must be a concrete fact from the text (events, reveals, character state, unresolved threads).
 - No speculation, no new facts.
 - Keep bullets short (max ~18 words each).

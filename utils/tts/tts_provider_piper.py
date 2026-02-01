@@ -20,8 +20,8 @@ class PiperTtsProvider:
         self.dialog_cfg = SynthesisConfig(volume=1.0, length_scale=1.08, noise_scale=0.95, noise_w_scale=1.05,
                                           normalize_audio=False)
 
-    def write_wav_for_text(self, text: str, out_path: str) -> str:
-        spans = split_dialog_spans(text)
+    def write_wav_for_text(self, text: str, out_path: str, project_lang_code: str) -> str:
+        spans = split_dialog_spans(text, project_lang_code)
         log.debug("Spans: %s", spans)
         if not spans:
             raise ValueError("No text")
