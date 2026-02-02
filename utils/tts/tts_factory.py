@@ -37,6 +37,7 @@ def pick_xtts_voices(cfg, project_lang_code: str) -> tuple[str, str]:
 
 def build_xtts(cfg, project_lang_code: str) -> XttsTtsProvider:
     lang = canon_lang(project_lang_code)
+    finetune = getattr(cfg, "XTTS_FINETUNE_DIR_RU", None) if lang == "ru" else None
     narr_voice, dialog_voice = pick_xtts_voices(cfg, project_lang_code)
     return XttsTtsProvider(
         model_name=cfg.XTTS_MODEL,
@@ -44,6 +45,7 @@ def build_xtts(cfg, project_lang_code: str) -> XttsTtsProvider:
         dialog_voice=dialog_voice,
         language=lang,
         fade_ms=cfg.XTTS_FADE_MS,
+        finetune_dir=finetune,
     )
 
 

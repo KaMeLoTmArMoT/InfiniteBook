@@ -54,8 +54,13 @@ class AppConfig(BaseSettings):
     XTTS_NARR_VOICE: str = "Filip Traverse"
     XTTS_DIALOG_VOICE: str = "Aaron Dreschner"
 
+    XTTS_FINETUNE_DIR_RU: str = None
     XTTS_NARR_VOICE_RU: str = "Kumar Dahl"
     XTTS_DIALOG_VOICE_RU: str = "Luis Moray"
+
+    XTTS_USE_VOICE_RU_CUSTOM: bool = False
+    XTTS_NARR_VOICE_RU_CUSTOM: str = "Alexandr Kotov"
+    XTTS_DIALOG_VOICE_RU_CUSTOM: str = "Maksim Suslov"
     XTTS_FADE_MS: int = 20  # 0 => disable
 
     # Piper TTS models

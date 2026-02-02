@@ -1,4 +1,4 @@
-### Place TTS Models Here
+### Place Piper TTS Models Here
 
 [`Huggingface 
 piper-voices`](https://huggingface.co/rhasspy/piper-voices/tree/main).
