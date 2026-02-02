@@ -1,8 +1,8 @@
-# tts_provider_piper.py
+import asyncio
 import time
-
 import wave
 from pathlib import Path
+
 from piper import PiperVoice, SynthesisConfig
 
 from utils.core_logger import log
@@ -10,17 +10,66 @@ from utils.tts.tts_common import split_dialog_spans, silence_bytes
 
 
 class PiperTtsProvider:
+    """
+    Piper provider with lazy model init.
+
+    Contract:
+      - await ainit() before first use (non-blocking for event loop)
+      - unload() drops model refs (best-effort)
+    """
+
     def __init__(self, narr_model: str, dialog_model: str, lead_in_ms: int = 1000):
-        self.voice_narr = PiperVoice.load(narr_model)
-        self.voice_dialog = PiperVoice.load(dialog_model)
+        self.narr_model = narr_model
+        self.dialog_model = dialog_model
         self.lead_in_ms = lead_in_ms
 
-        self.narr_cfg = SynthesisConfig(volume=1.0, length_scale=1.10, noise_scale=0.60, noise_w_scale=0.70,
-                                        normalize_audio=False)
-        self.dialog_cfg = SynthesisConfig(volume=1.0, length_scale=1.08, noise_scale=0.95, noise_w_scale=1.05,
-                                          normalize_audio=False)
+        self.voice_narr: PiperVoice | None = None
+        self.voice_dialog: PiperVoice | None = None
+
+        self.narr_cfg = SynthesisConfig(
+            volume=1.0,
+            length_scale=1.10,
+            noise_scale=0.60,
+            noise_w_scale=0.70,
+            normalize_audio=False,
+        )
+        self.dialog_cfg = SynthesisConfig(
+            volume=1.0,
+            length_scale=1.08,
+            noise_scale=0.95,
+            noise_w_scale=1.05,
+            normalize_audio=False,
+        )
+
+        self._init_lock = asyncio.Lock()
+
+    async def ainit(self) -> None:
+        if self.voice_narr is not None and self.voice_dialog is not None:
+            return
+
+        async with self._init_lock:
+            if self.voice_narr is not None and self.voice_dialog is not None:
+                return
+
+            log.info("Piper init start narr=%s dialog=%s", self.narr_model, self.dialog_model)
+
+            self.voice_narr = await asyncio.to_thread(PiperVoice.load, self.narr_model)
+            self.voice_dialog = await asyncio.to_thread(PiperVoice.load, self.dialog_model)
+
+            log.info("Piper init done narr=%s dialog=%s", self.narr_model, self.dialog_model)
+
+    def unload(self) -> None:
+        # PiperVoice doesn’t expose a formal unload; drop refs so GC can reclaim.
+        self.voice_narr = None
+        self.voice_dialog = None
+
+    def _ensure_loaded(self) -> None:
+        if self.voice_narr is None or self.voice_dialog is None:
+            raise RuntimeError("Piper provider not initialized; call await ainit() first")
 
     def write_wav_for_text(self, text: str, out_path: str, project_lang_code: str) -> str:
+        self._ensure_loaded()
+
         spans = split_dialog_spans(text, project_lang_code)
         log.debug("Spans: %s", spans)
         if not spans:
@@ -85,6 +134,6 @@ class PiperTtsProvider:
                     ensure_fmt(chunk)
                     wf.writeframes(chunk.audio_int16_bytes)
 
-        log.info(f"PiperTtsProvider: generated in {time.perf_counter() - t0:.2f}s")
+        log.info("PiperTtsProvider: generated in %.2fs", time.perf_counter() - t0)
         Path(tmp).replace(out_path)
         return out_path

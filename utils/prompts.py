@@ -113,6 +113,7 @@ PREVIOUS CHAPTER ENDING EXCERPT (tail of last scene; may be empty):
 Return JSON only that matches the schema.
 """
 
+# TODO: make more stable - dialog anways in double quotes, french quotes - for self names or whatever
 PROMPT_WRITE_BEAT = """\
 You are a lead novelist for a gritty, high-stakes thriller.
 

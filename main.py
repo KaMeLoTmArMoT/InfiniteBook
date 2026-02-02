@@ -13,14 +13,13 @@ from utils.core_models import *
 from utils.models import build_model_gateway
 from utils.prompts import *
 from utils.tts.audio_store import *
-from utils.tts.tts_factory import make_tts_provider_async
+from utils.tts.tts_manager import TtsManager
 from utils.tts.tts_provider_qwen import QwenTtsProvider
 from utils.utils import *
 from utils.memory_store import MemoryStore
 from utils.utils import _build_write_context
 
 import asyncio
-from pathlib import Path
 from fastapi import HTTPException
 from fastapi.responses import FileResponse
 
@@ -36,24 +35,15 @@ async def lifespan(app: FastAPI):
     await store.a_init_db()
     await MODEL.startup()
 
-    app.state.tts_provider = None
-    app.state.tts_ready = asyncio.Event()
-    app.state.tts_init_error = None
-
-    async def _init_tts():
-        try:
-            app.state.tts_provider_key = CFG.TTS_PROVIDER
-            app.state.tts_provider = await make_tts_provider_async(CFG)
-            app.state.tts_ready.set()
-        except Exception as e:
-            app.state.tts_init_error = e
-            app.state.tts_ready.set()  # unblock waiters, but with error
-            log.warning(f"TTS init error: {e}")
-
-    app.state.tts_init_task = asyncio.create_task(_init_tts())
+    app.state.tts = TtsManager(CFG)  # lazy, no model loads here
 
     yield
-    # shutdown
+
+    try:
+        await app.state.tts.unload()
+    except Exception as e:
+        log.exception(f"TTS unload failed on shutdown {e}")
+
     await MODEL.shutdown()
 
 
@@ -303,7 +293,7 @@ async def write_beat(project_id: str, chapter: int = 1, beat_index: int = 0):
 
     opts = beat_generation_options(beat_type=cur.get("type", ""), chapter=chapter, beat_index=beat_index)
     result = await call_llm_json(prompt, WriteBeatResponse, temperature=CFG.TEMP_BEATS,
-                                                    options_extra=opts)
+                                 options_extra=opts)
 
     payload = result.model_dump()
     await ps.a_kv_set(f"ch{chapter}_beat_{beat_index}", {"beat_index": beat_index, **payload})
@@ -392,6 +382,13 @@ async def api_projects_delete(project_id: str):
     return {"ok": True}
 
 
+@app.post("/api/admin/tts/unload")
+async def api_tts_unload(payload: dict, request: Request):
+    key = payload.get("provider")  # optional
+    ok = await request.app.state.tts.unload(key)
+    return {"ok": ok, "status": request.app.state.tts.status()}
+
+
 @app.get("/api/projects/{project_id}/audio/status")
 async def api_audio_status(project_id: str, chapter: int = 1):
     ps = await require_project(store, project_id)
@@ -440,37 +437,28 @@ async def api_audio_wav(project_id: str, chapter: int, beat_index: int, provider
 async def api_audio_generate(project_id: str, payload: dict, request: Request):
     ps = await require_project(store, project_id)
     project_lang_code = await store.a_get_project_language(project_id)
-    project_language = lang_label(project_lang_code)
 
     chapter = int(payload["chapter"])
     beat_index = int(payload["beat_index"])
     force = bool(payload.get("force", False))
     provider = norm_provider(payload.get("provider"))
 
-    # Single loaded provider instance
-    tts_provider = request.app.state.tts_provider
-
-    # Enforce "only active provider can generate"
-    active_key = getattr(request.app.state, "tts_provider_key", None)
-    if active_key and active_key != provider:
-        raise HTTPException(status_code=409, detail=f"provider '{provider}' not loaded (active: {active_key})")
-
     key = job_key(project_id, chapter, beat_index, provider)
     out_path = wav_path(project_id, provider, chapter, beat_index)
 
     if AUDIO_JOBS.get(key) == "generating":
-        log.info(f"Generating in progress {out_path}")
+        log.info("Generating in progress %s", out_path)
         return {"ok": True, "status": "generating", "provider": provider}
 
     if (not force) and out_path.exists():
-        log.info(f"Skip generating {out_path}, exists")
+        log.info("Skip generating %s, exists", out_path)
         return {"ok": True, "status": "ready", "provider": provider}
 
     st = await ps.a_load_state(chapter=chapter)
     text = (st.get("beat_texts") or {}).get(beat_index, "")
     text = (text or "").strip()
     if not text:
-        log.warning(f"No text for {out_path}")
+        log.warning("No text for %s", out_path)
         raise HTTPException(status_code=400, detail="beat text empty")
 
     AUDIO_JOBS[key] = "generating"
@@ -479,6 +467,8 @@ async def api_audio_generate(project_id: str, payload: dict, request: Request):
         try:
             out_path.parent.mkdir(parents=True, exist_ok=True)
 
+            tts_provider = await request.app.state.tts.ensure(provider, project_lang_code)
+
             if isinstance(tts_provider, QwenTtsProvider):
                 await tts_provider.write_wav_for_text(text, str(out_path), project_lang_code)
             else:
@@ -486,7 +476,7 @@ async def api_audio_generate(project_id: str, payload: dict, request: Request):
 
             AUDIO_JOBS[key] = "done"
         except Exception as e:
-            log.warning(f"Error generating audio for {out_path}: {e}")
+            log.warning("Error generating audio for %s: %s", out_path, e)
             AUDIO_JOBS[key] = "error"
 
     asyncio.create_task(_run())

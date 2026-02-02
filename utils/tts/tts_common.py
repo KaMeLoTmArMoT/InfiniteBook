@@ -3,8 +3,6 @@ import re
 from dataclasses import dataclass
 from num2words import num2words
 
-from utils.core_models import CFG
-
 try:  # 2. OPTIONAL DEPENDENCY: transliterate
     from transliterate import translit
 

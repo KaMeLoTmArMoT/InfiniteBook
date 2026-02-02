@@ -1,53 +1,55 @@
-# tts_factory.py
-import asyncio
-from utils.core_logger import log
 from utils.tts.tts_provider_piper import PiperTtsProvider
 from utils.tts.tts_provider_xtts import XttsTtsProvider
 from utils.tts.tts_provider_qwen import QwenTtsProvider
 
 
-def make_tts_provider(cfg):
-    provider_name = (cfg.TTS_PROVIDER or "piper").lower()
-
-    if provider_name == "xtts":
-        return XttsTtsProvider(
-            model_name=cfg.XTTS_MODEL,
-            narr_voice=cfg.XTTS_NARR_VOICE,
-            dialog_voice=cfg.XTTS_DIALOG_VOICE,
-            language=cfg.XTTS_LANGUAGE,
-            fade_ms=cfg.XTTS_FADE_MS,
-        )
-
-    if provider_name == "piper":
-        return PiperTtsProvider(
-            narr_model=cfg.PIPER_NARR_MODEL,
-            dialog_model=cfg.PIPER_DIALOG_MODEL,
-        )
-
-    if provider_name == "qwen":
-        return QwenTtsProvider(
-            api_url=cfg.QWEN_TTS_URL,
-            model_id=cfg.QWEN_MODEL_ID,
-            dtype=getattr(cfg, "QWEN_DTYPE", "float16"),
-        )
-
-    raise ValueError(f"Unknown TTS provider: {cfg.TTS_PROVIDER}")
+def canon_lang(code: str | None) -> str:
+    c = (code or "").strip().lower()
+    if c.startswith("ru"):
+        return "ru"
+    if c.startswith("uk"):
+        return "uk"
+    if c.startswith("de"):
+        return "de"
+    return "en"
 
 
-async def make_tts_provider_async(cfg):
-    provider_name = (cfg.TTS_PROVIDER or "piper").lower()
-    log.info("TTS init start provider=%s", provider_name)
+def pick_piper_models(cfg, project_lang_code: str) -> tuple[str, str]:
+    lang = canon_lang(project_lang_code)
+    if lang == "ru":
+        return cfg.PIPER_NARR_MODEL_RU, cfg.PIPER_DIALOG_MODEL_RU
+    if lang == "de":
+        return cfg.PIPER_NARR_MODEL_DE, cfg.PIPER_DIALOG_MODEL_DE
+    return cfg.PIPER_NARR_MODEL_EN, cfg.PIPER_DIALOG_MODEL_EN
 
-    try:
-        p = await asyncio.to_thread(make_tts_provider, cfg)
 
-        if provider_name == "qwen":
-            await p.ainit()
-            log.info("Init qwen TTS async client done")
+def build_piper(cfg, project_lang_code: str) -> PiperTtsProvider:
+    narr_model, dialog_model = pick_piper_models(cfg, project_lang_code)
+    return PiperTtsProvider(narr_model=narr_model, dialog_model=dialog_model)
 
-        log.info("TTS init done provider=%s", provider_name)
-        return p
 
-    except Exception:
-        log.exception("TTS init failed provider=%s", provider_name)
-        raise
+def pick_xtts_voices(cfg, project_lang_code: str) -> tuple[str, str]:
+    lang = canon_lang(project_lang_code)
+    if lang == "ru":
+        return cfg.XTTS_NARR_VOICE_RU, cfg.XTTS_DIALOG_VOICE_RU
+    return cfg.XTTS_NARR_VOICE, cfg.XTTS_DIALOG_VOICE
+
+
+def build_xtts(cfg, project_lang_code: str) -> XttsTtsProvider:
+    lang = canon_lang(project_lang_code)
+    narr_voice, dialog_voice = pick_xtts_voices(cfg, project_lang_code)
+    return XttsTtsProvider(
+        model_name=cfg.XTTS_MODEL,
+        narr_voice=narr_voice,
+        dialog_voice=dialog_voice,
+        language=lang,
+        fade_ms=cfg.XTTS_FADE_MS,
+    )
+
+
+def build_qwen(cfg) -> QwenTtsProvider:
+    return QwenTtsProvider(
+        api_url=cfg.QWEN_TTS_URL,
+        model_id=cfg.QWEN_MODEL_ID,
+        dtype=getattr(cfg, "QWEN_DTYPE", "float16"),
+    )

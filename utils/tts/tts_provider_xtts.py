@@ -1,8 +1,8 @@
-# tts_provider_xtts.py
+import asyncio
 import time
-
 import wave
 from pathlib import Path
+
 import numpy as np
 import torch
 from TTS.api import TTS
@@ -32,6 +32,14 @@ def apply_fade_in_out(wav: np.ndarray, sr: int, fade_ms: int) -> np.ndarray:
 
 
 class XttsTtsProvider:
+    """
+    XTTS provider with lazy model init.
+
+    Contract:
+      - await ainit() before first use (non-blocking for event loop)
+      - unload() drops model refs and best-effort frees VRAM
+    """
+
     def __init__(
             self,
             model_name: str,
@@ -44,7 +52,11 @@ class XttsTtsProvider:
             fade_ms: int = 20,
             device: str | None = None,
     ):
-        self.tts = TTS(model_name).to(device or ("cuda" if torch.cuda.is_available() else "cpu"))
+        self.model_name = model_name
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+
+        self.tts: TTS | None = None
+
         self.narr_voice = narr_voice
         self.dialog_voice = dialog_voice
         self.language = language
@@ -54,14 +66,54 @@ class XttsTtsProvider:
         self.pause_ms = pause_ms
         self.fade_ms = fade_ms
 
-        self.sr = 24000  # XTTS v2 outputs 24khz.
+        self.sr = 24000  # XTTS v2 outputs 24khz
         self.sw = 2
         self.ch = 1
+
+        self._init_lock = asyncio.Lock()
+
+    async def ainit(self) -> None:
+        if self.tts is not None:
+            return
+
+        async with self._init_lock:
+            if self.tts is not None:
+                return
+
+            log.info("XTTS init start model=%s device=%s", self.model_name, self.device)
+
+            def _load():
+                return TTS(self.model_name).to(self.device)
+
+            self.tts = await asyncio.to_thread(_load)
+
+            log.info(
+                "XTTS init done model=%s device=%s narr=%s dialog=%s lang=%s",
+                self.model_name,
+                self.device,
+                self.narr_voice,
+                self.dialog_voice,
+                self.language,
+            )
+
+    def unload(self) -> None:
+        self.tts = None
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception:
+            pass
+
+    def _ensure_loaded(self) -> None:
+        if self.tts is None:
+            raise RuntimeError("XTTS provider is not initialized; call await ainit() first")
 
     def _pick_speaker(self, kind: str) -> str:
         return self.dialog_voice if kind == "dialog" else self.narr_voice
 
     def write_wav_for_text(self, text: str, out_path: str, project_lang_code: str) -> str:
+        self._ensure_loaded()
+
         spans = split_dialog_spans(text, project_lang_code)
         log.debug("Spans: %s", spans)
         if not spans:
@@ -85,14 +137,19 @@ class XttsTtsProvider:
                     wf.writeframes(silence_bytes(self.pause_ms, self.sr, self.sw, self.ch))
                     continue
 
+                if not s.text.strip():
+                    continue
+
                 if self.gap_ms > 0:
                     wf.writeframes(silence_bytes(self.gap_ms, self.sr, self.sw, self.ch))
 
                 speaker = self._pick_speaker(s.kind)
+
+                # NOTE: tts.tts() is blocking CPU/GPU work; caller should run write_wav_for_text in to_thread.
                 wav = self.tts.tts(text=s.text, speaker=speaker, language=self.language)
                 wav = apply_fade_in_out(wav, sr=self.sr, fade_ms=self.fade_ms)
                 wf.writeframes(float_to_int16_bytes(wav))
 
-        log.info(f"XttsTtsProvider: generated in {time.perf_counter() - t0:.2f}s")
+        log.info("XttsTtsProvider: generated in %.2fs", time.perf_counter() - t0)
         Path(tmp).replace(out_path)
         return out_path
