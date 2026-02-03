@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import uuid
 from typing import Any
 
@@ -9,7 +10,8 @@ from utils.imggen.pipelines import (
     load_template,
     Flux2KleinT2IParams,
     build_flux2_klein_t2i, Flux2KleinT2IDistilledParams, build_flux2_klein_t2i_distilled,
-    build_flux2_klein_t2i_distilled_gguf, Flux2KleinT2IDistilledGGUFParams,
+    build_flux2_klein_t2i_distilled_gguf, Flux2KleinT2IDistilledGGUFParams, DEFAULT_STYLE_PROMPT,
+    CharacterFromStyleParams, build_flux2_klein_character_style_ref_gguf,
 )
 
 
@@ -77,3 +79,31 @@ class ComfyImgGenProvider:
             timeout_s=self.cfg.COMFY_API_TIMEOUT_S,
         )
         return {"prompt_id": resp.prompt_id, "queue_number": resp.number, "history_item": item}
+
+    async def run_style_gguf(self, prompt: str | None) -> dict:
+        text = (prompt or "").strip() or DEFAULT_STYLE_PROMPT
+        params = Flux2KleinT2IDistilledGGUFParams(
+            prompt=text,
+            width=1344,
+            height=768,
+            steps=4,
+            cfg=1.0,
+            seed=random.randint(1, 2 ** 31 - 1),
+            filename_prefix="STYLE-REF",
+        )
+        return await self.run_flux2_klein_t2i_distilled_gguf(params)
+
+
+    async def run_character_from_style_gguf(self, params: CharacterFromStyleParams) -> dict:
+        tpl = self._tpl("flux2_klein_character_style_ref_gguf")
+        params = CharacterFromStyleParams(**{**params.__dict__, "seed": random.randint(1, 2 ** 31 - 1)})
+        graph = build_flux2_klein_character_style_ref_gguf(tpl, params)
+
+        client_id = str(uuid.uuid4())
+        resp = await self.client.prompt(graph, client_id=client_id)
+        item = await self.client.wait_done(
+            resp.prompt_id,
+            poll_ms=self.cfg.COMFY_OUTPUT_POLL_MS,
+            timeout_s=self.cfg.COMFY_API_TIMEOUT_S,
+        )
+        return {"prompt_id": resp.prompt_id, "queue_number": resp.number, "history_item": item, "seed": params.seed}

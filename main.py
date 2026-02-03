@@ -4,6 +4,8 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from imggen_routes import router as imggen_router
+from imggen_style_routes import router as imggen_style_router
+from imggen_character_routes import router as imggen_character_router
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -50,6 +52,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(imggen_router)
+app.include_router(imggen_style_router)
+app.include_router(imggen_character_router)
 MODEL = build_model_gateway()
 log.info("Run")
 store = MemoryStore("infinitebook.sqlite")

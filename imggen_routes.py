@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from fastapi import UploadFile, File
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -11,6 +11,11 @@ from utils.imggen.image_store import image_path
 
 router = APIRouter(prefix="/api/imggen", tags=["imggen"])
 mgr = ImgGenManager(CFG)
+
+
+class UploadResp(BaseModel):
+    comfy_name: str
+    raw: dict
 
 
 class SubmitFlux2Klein(BaseModel):
@@ -108,3 +113,28 @@ async def delete_job(job_id: str):
 @router.post("/queue/clear")
 async def queue_clear():
     return await mgr.provider.client.queue_clear()
+
+
+@router.post("/upload", response_model=UploadResp)
+async def upload_image(file: UploadFile = File(...)):
+    # read bytes
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="empty file")
+
+    # ensure provider client is ready
+    # (mgr/provider already initialized on startup in your setup)
+    res = await mgr.provider.client.upload_image(
+        data=data,
+        filename=file.filename or "upload.png",
+        subfolder="",  # keep root input/
+        overwrite=True,
+    )
+
+    # Comfy usually returns {"name": "...", "subfolder": "...", "type": "input"}.
+    comfy_name = res.get("name") or res.get("filename")
+    if not comfy_name:
+        # fallback: still return raw for debugging
+        raise HTTPException(status_code=502, detail=f"unexpected comfy upload response: {res}")
+
+    return UploadResp(comfy_name=comfy_name, raw=res)

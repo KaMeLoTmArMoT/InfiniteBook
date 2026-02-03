@@ -104,3 +104,28 @@ class ComfyClient:
         async with self._s().post(f"{self.base}/queue", json={"clear": True}) as r:
             r.raise_for_status()
             return await r.json()
+
+    async def upload_image(
+        self,
+        data: bytes,
+        filename: str,
+        subfolder: str = "",
+        overwrite: bool = True,
+    ) -> dict[str, Any]:
+        """
+        Uploads image into ComfyUI input/. Returns comfy JSON (contains 'name' typically).
+        Route: POST /upload/image (multipart/form-data) [page:6]
+        """
+        form = aiohttp.FormData()
+        form.add_field(
+            "image",
+            data,
+            filename=filename,
+            content_type="application/octet-stream",
+        )
+        form.add_field("subfolder", subfolder)
+        form.add_field("overwrite", "1" if overwrite else "0")
+
+        async with self._s().post(f"{self.base}/upload/image", data=form) as r:
+            r.raise_for_status()
+            return await r.json()
