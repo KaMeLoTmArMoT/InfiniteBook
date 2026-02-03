@@ -78,5 +78,11 @@ class AppConfig(BaseSettings):
     GOOGLE_GENAI_API_KEY: str | None = None
     GOOGLE_GENAI_MODEL: str | None = None
 
+    COMFY_API_IP: str = "127.0.0.1:8188"
+    COMFY_API_TIMEOUT_S: int = 300
+    COMFY_TEMPLATES_DIR: str = "docs/t2i_templates"
+    COMFY_OUTPUT_POLL_MS: int = 500
+    COMFY_MAX_CONCURRENCY: int = 1
+
 
 CFG = AppConfig()
