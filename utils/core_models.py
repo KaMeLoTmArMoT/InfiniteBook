@@ -40,6 +40,7 @@ class BuildContinuityRequest(BaseModel):
 
 # --- RESPONSE MODELS (LLM output contracts) ---
 
+
 class WriteBeatResponse(BaseModel):
     text: str = Field(..., min_length=50)
 
@@ -51,7 +52,9 @@ class RefineOption(BaseModel):
 
 
 class RefineResponse(BaseModel):
-    variations: List[RefineOption] = Field(..., min_length=CFG.REFINE_VARIATIONS, max_length=CFG.REFINE_VARIATIONS)
+    variations: List[RefineOption] = Field(
+        ..., min_length=CFG.REFINE_VARIATIONS, max_length=CFG.REFINE_VARIATIONS
+    )
 
 
 class PlotChapter(BaseModel):
@@ -62,7 +65,9 @@ class PlotChapter(BaseModel):
 
 class PlotResponse(BaseModel):
     structure_analysis: str
-    chapters: List[PlotChapter] = Field(..., min_length=CFG.PLOT_CHAPTERS_MIN, max_length=CFG.PLOT_CHAPTERS_MAX)
+    chapters: List[PlotChapter] = Field(
+        ..., min_length=CFG.PLOT_CHAPTERS_MIN, max_length=CFG.PLOT_CHAPTERS_MAX
+    )
 
 
 class CharacterCard(BaseModel):
@@ -72,9 +77,15 @@ class CharacterCard(BaseModel):
 
 
 class CharactersResponse(BaseModel):
-    protagonists: List[CharacterCard] = Field(..., min_length=CFG.PROTAGONISTS_MIN, max_length=CFG.PROTAGONISTS_MAX)
-    antagonists: List[CharacterCard] = Field(..., min_length=CFG.ANTAGONISTS_MIN, max_length=CFG.ANTAGONISTS_MAX)
-    supporting: List[CharacterCard] = Field(..., min_length=CFG.SUPPORTING_MIN, max_length=CFG.SUPPORTING_MAX)
+    protagonists: List[CharacterCard] = Field(
+        ..., min_length=CFG.PROTAGONISTS_MIN, max_length=CFG.PROTAGONISTS_MAX
+    )
+    antagonists: List[CharacterCard] = Field(
+        ..., min_length=CFG.ANTAGONISTS_MIN, max_length=CFG.ANTAGONISTS_MAX
+    )
+    supporting: List[CharacterCard] = Field(
+        ..., min_length=CFG.SUPPORTING_MIN, max_length=CFG.SUPPORTING_MAX
+    )
 
 
 class Beat(BaseModel):
@@ -83,7 +94,9 @@ class Beat(BaseModel):
 
 
 class ChapterPlanResponse(BaseModel):
-    beats: List[Beat] = Field(..., min_length=CFG.BEATS_MIN - 1, max_length=CFG.BEATS_MAX + 3)
+    beats: List[Beat] = Field(
+        ..., min_length=CFG.BEATS_MIN - 1, max_length=CFG.BEATS_MAX + 3
+    )
 
 
 class CharacterPatch(BaseModel):
@@ -94,7 +107,9 @@ class CharacterPatch(BaseModel):
 
 
 class ChapterContinuity(BaseModel):
-    bullets: List[str] = Field(default_factory=list, description="10–20 bullet continuity capsule")
+    bullets: List[str] = Field(
+        default_factory=list, description="10–20 bullet continuity capsule"
+    )
 
 
 class ClearBeatRequest(BaseModel):
@@ -105,3 +120,45 @@ class ClearBeatRequest(BaseModel):
 class ClearFromBeatRequest(BaseModel):
     chapter: int = 1
     from_beat_index: int  # clears beats from this index onward
+
+
+class UploadResp(BaseModel):
+    comfy_name: str
+    raw: dict
+
+
+class StyleReq(BaseModel):
+    prompt: str | None = Field(
+        default="", description="If empty -> default cyberpunk noir Berlin prompt."
+    )
+
+
+class SubmitFlux2Klein(BaseModel):
+    prompt: str = Field(min_length=1)
+    negative: str = ""
+    width: int = 1024
+    height: int = 1024
+    steps: int = 20
+    cfg: float = 5.0
+    seed: int = 0
+    filename_prefix: str = "Flux2-Klein"
+
+
+class SubmitRequest(BaseModel):
+    pipeline: str = Field(min_length=1)
+    params: dict = Field(default_factory=dict)
+
+
+class CharacterReq(BaseModel):
+    style_anchor: str = Field(default="")
+    scene_block: str = Field(default="")
+    character_anchor: str = Field(default="")
+    style_image: str = Field(
+        default="", description="Filename in Comfy input/. Use /upload first."
+    )
+    width: int = 768
+    height: int = 1152
+    steps: int = 4
+    cfg: float = 1.0
+    seed: int = 0
+    filename_prefix: str = "HERO-BASE"

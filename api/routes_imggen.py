@@ -1,37 +1,22 @@
+# api/routes_imggen.py
 from __future__ import annotations
-from fastapi import UploadFile, File
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
 
-from utils.config import CFG
-from utils.imggen.imggen_manager import ImgGenManager
-from utils.imggen.pipelines import Flux2KleinT2IParams, Flux2KleinT2IDistilledParams, Flux2KleinT2IDistilledGGUFParams
+from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse, Response
+
+from utils.core_models import *
 from utils.imggen.image_store import image_path
+from utils.imggen.imggen_manager import ImgGenManager
+from utils.imggen.pipelines import (
+    CharacterFromStyleParams,
+    Flux2KleinT2IDistilledGGUFParams,
+    Flux2KleinT2IDistilledParams,
+    Flux2KleinT2IParams,
+)
 
 router = APIRouter(prefix="/api/imggen", tags=["imggen"])
+
 mgr = ImgGenManager(CFG)
-
-
-class UploadResp(BaseModel):
-    comfy_name: str
-    raw: dict
-
-
-class SubmitFlux2Klein(BaseModel):
-    prompt: str = Field(min_length=1)
-    negative: str = ""
-    width: int = 1024
-    height: int = 1024
-    steps: int = 20
-    cfg: float = 5.0
-    seed: int = 0
-    filename_prefix: str = "Flux2-Klein"
-
-
-class SubmitRequest(BaseModel):
-    pipeline: str = Field(min_length=1)
-    params: dict = Field(default_factory=dict)
 
 
 @router.on_event("startup")
@@ -82,6 +67,7 @@ async def status(job_id: str):
     j = mgr.get(job_id)
     if not j:
         raise HTTPException(status_code=404, detail="job not found")
+
     return {
         "job_id": j.job_id,
         "pipeline": j.pipeline,
@@ -112,29 +98,78 @@ async def delete_job(job_id: str):
 
 @router.post("/queue/clear")
 async def queue_clear():
+    # keep in mind: method name depends on your Comfy client implementation
     return await mgr.provider.client.queue_clear()
 
 
 @router.post("/upload", response_model=UploadResp)
 async def upload_image(file: UploadFile = File(...)):
-    # read bytes
     data = await file.read()
     if not data:
         raise HTTPException(status_code=400, detail="empty file")
 
-    # ensure provider client is ready
-    # (mgr/provider already initialized on startup in your setup)
     res = await mgr.provider.client.upload_image(
         data=data,
         filename=file.filename or "upload.png",
-        subfolder="",  # keep root input/
+        subfolder="",
         overwrite=True,
     )
 
-    # Comfy usually returns {"name": "...", "subfolder": "...", "type": "input"}.
     comfy_name = res.get("name") or res.get("filename")
     if not comfy_name:
-        # fallback: still return raw for debugging
-        raise HTTPException(status_code=502, detail=f"unexpected comfy upload response: {res}")
+        raise HTTPException(
+            status_code=502, detail=f"unexpected comfy upload response: {res}"
+        )
 
     return UploadResp(comfy_name=comfy_name, raw=res)
+
+
+@router.post("/create_style", response_class=Response)
+async def create_style(body: StyleReq):
+    res = await mgr.provider.run_style_gguf(body.prompt)
+
+    item = res["history_item"]
+    outputs = item.get("outputs") or {}
+    for _, out in outputs.items():
+        images = out.get("images") or []
+        if images:
+            img = images[0]
+            b = await mgr.provider.client.view(
+                filename=img["filename"],
+                subfolder=img.get("subfolder", ""),
+                type_=img.get("type", "output"),
+            )
+            return Response(content=b, media_type="image/png")
+
+    return Response(content=b"", media_type="application/octet-stream")
+
+
+@router.post("/create_character", response_class=Response)
+async def create_character(body: CharacterReq):
+    params = CharacterFromStyleParams(**body.model_dump())
+    if not params.style_image.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="style_image is required (upload it to Comfy input/ first)",
+        )
+
+    res = await mgr.provider.run_character_from_style_gguf(params)
+
+    item = res["history_item"]
+    outputs = item.get("outputs") or {}
+    for _, out in outputs.items():
+        images = out.get("images") or []
+        if images:
+            img = images[0]
+            b = await mgr.provider.client.view(
+                filename=img["filename"],
+                subfolder=img.get("subfolder", ""),
+                type_=img.get("type", "output"),
+            )
+            return Response(
+                content=b,
+                media_type="image/png",
+                headers={"X-Seed": str(res.get("seed", 0))},
+            )
+
+    raise HTTPException(status_code=500, detail="No images in comfy outputs")

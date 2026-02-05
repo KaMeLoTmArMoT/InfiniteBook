@@ -6,6 +6,7 @@ import json
 import ollama
 import psutil
 import pynvml
+from fastapi import HTTPException
 
 
 # --- JSON HELPERS (fallback) ---
@@ -24,7 +25,7 @@ def clean_json_response(raw: str) -> dict | list | None:
         end = raw.rfind("}")
         if start >= 0 and end > start:
             try:
-                return json.loads(raw[start: end + 1])
+                return json.loads(raw[start : end + 1])
             except Exception:
                 return None
     return None
@@ -45,20 +46,21 @@ def get_gpu_status():
         handle = pynvml.nvmlDeviceGetHandleByIndex(0)  # Беремо першу GPU
 
         mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-        total_mem = mem_info.total / 1024 ** 2  # MB
-        used_mem = mem_info.used / 1024 ** 2  # MB
+        total_mem = mem_info.total / 1024**2  # MB
+        used_mem = mem_info.used / 1024**2  # MB
 
         util = pynvml.nvmlDeviceGetUtilizationRates(handle)
         gpu_load = util.gpu
 
         name = pynvml.nvmlDeviceGetName(handle)
-        if isinstance(name, bytes): name = name.decode('utf-8')
+        if isinstance(name, bytes):
+            name = name.decode("utf-8")
 
         return {
             "name": name,
             "memory_used": int(used_mem),
             "memory_total": int(total_mem),
-            "gpu_load": int(gpu_load)
+            "gpu_load": int(gpu_load),
         }
     except Exception as e:
         return {"error": str(e)}
@@ -83,7 +85,9 @@ def log_ollama_usage(log, tag: str, resp: dict) -> None:
     r = resp.get("eval_count", "- No data -")
     done_reason = resp.get("done_reason", "- No data -")
 
-    log.info(f"[ollama] {tag} prompt_eval_count={p} eval_count={r} done_reason={done_reason}")
+    log.info(
+        f"[ollama] {tag} prompt_eval_count={p} eval_count={r} done_reason={done_reason}"
+    )
 
 
 def get_ram_status():
@@ -102,11 +106,15 @@ def _fmt_prev_beats(beats: list[dict], beat_index: int, lookback: int = 4) -> st
     lines = []
     for i in range(start, beat_index):
         b = beats[i]
-        lines.append(f"- Beat {i + 1} ({b.get('type', '')}): {b.get('description', '')}")
+        lines.append(
+            f"- Beat {i + 1} ({b.get('type', '')}): {b.get('description', '')}"
+        )
     return "\n".join(lines) if lines else "- (none)"
 
 
-async def _build_write_context(store, chapter: int, beat_index: int, beats: list[dict]) -> dict:
+async def _build_write_context(
+    store, chapter: int, beat_index: int, beats: list[dict]
+) -> dict:
     prev_beats = _fmt_prev_beats(beats, beat_index, lookback=4)
 
     prev_text = ""
@@ -131,12 +139,16 @@ async def _build_write_context(store, chapter: int, beat_index: int, beats: list
     cap = await store.a_kv_get(f"ch{prev_ch}_continuity")
     capsule_txt = ""
     if isinstance(cap, dict) and isinstance(cap.get("bullets"), list):
-        capsule_txt = "\n".join(f"- {b.strip()}" for b in cap["bullets"] if isinstance(b, str) and b.strip())
+        capsule_txt = "\n".join(
+            f"- {b.strip()}" for b in cap["bullets"] if isinstance(b, str) and b.strip()
+        )
     elif isinstance(cap, str):
         capsule_txt = cap.strip()
 
     ending_full = await store.a_get_last_written_beat_text(prev_ch)
-    ending_tail = _tail_chars(ending_full, approx_tokens=400) if ending_full.strip() else ""
+    ending_tail = (
+        _tail_chars(ending_full, approx_tokens=400) if ending_full.strip() else ""
+    )
 
     return {
         "prev_text": "",  # same chapter has none
@@ -187,9 +199,11 @@ def beat_generation_options(*, beat_type: str, chapter: int, beat_index: int) ->
         # "seed": seed,  # TODO: do not use for now
     }
 
+
 async def get_cpu_status_async():
     cpu = await asyncio.to_thread(psutil.cpu_percent, 0.2)
     return {"cpu_load": cpu}
+
 
 LANG_LABELS = {
     "en": "English",
@@ -197,6 +211,13 @@ LANG_LABELS = {
     "de": "German",
 }
 
+
 def lang_label(code: str | None) -> str:
     c = (code or "").strip().lower()
     return LANG_LABELS.get(c, "English")
+
+
+async def require_project(store, project_id: str):
+    if not await store.a_project_exists(project_id):
+        raise HTTPException(status_code=404, detail="project not found")
+    return store.scoped(project_id)

@@ -17,12 +17,6 @@ AUDIO_JOBS: dict[tuple[str, int, int, str], str] = {}
 AUDIO_ROOT = Path("data/wavs")
 
 
-async def require_project(store, project_id: str):
-    if not await store.a_project_exists(project_id):
-        raise HTTPException(status_code=404, detail="project not found")
-    return store.scoped(project_id)
-
-
 def norm_provider(p: str) -> str:
     p = (p or "").strip().lower()
     if not p:
@@ -34,7 +28,9 @@ def norm_provider(p: str) -> str:
     return p
 
 
-def job_key(project_id: str, chapter: int, beat_index: int, provider: str) -> tuple[str, int, int, str]:
+def job_key(
+    project_id: str, chapter: int, beat_index: int, provider: str
+) -> tuple[str, int, int, str]:
     provider = norm_provider(provider)
     return (project_id, int(chapter), int(beat_index), provider)
 
@@ -48,12 +44,12 @@ def wav_path(project_id: str, provider: str, chapter: int, beat_index: int) -> P
     beat_index = int(beat_index)
 
     return (
-            AUDIO_ROOT
-            / project_id
-            / "audio"
-            / provider
-            / f"ch_{chapter}"
-            / f"beat_{beat_index}.wav"
+        AUDIO_ROOT
+        / project_id
+        / "audio"
+        / provider
+        / f"ch_{chapter}"
+        / f"beat_{beat_index}.wav"
     )
 
 
