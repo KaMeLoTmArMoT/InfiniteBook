@@ -8,8 +8,12 @@ from typing import Any, Awaitable, Callable
 
 from utils.core_logger import log
 from utils.imggen.image_store import save_image_bytes
-from utils.imggen.pipelines import Flux2KleinT2IParams, Flux2KleinT2IDistilledParams, Flux2KleinT2IDistilledGGUFParams
 from utils.imggen.imggen_provider_comfy import ComfyImgGenProvider
+from utils.imggen.pipelines import (
+    Flux2KleinT2IDistilledGGUFParams,
+    Flux2KleinT2IDistilledParams,
+    Flux2KleinT2IParams,
+)
 
 
 @dataclass
@@ -69,7 +73,12 @@ class ImgGenManager:
 
     async def submit_flux2_klein_t2i(self, params: Flux2KleinT2IParams) -> str:
         job_id = uuid.uuid4().hex
-        job = ImgJob(job_id=job_id, pipeline="flux2_klein_t2i", state="queued", created_at=time.time())
+        job = ImgJob(
+            job_id=job_id,
+            pipeline="flux2_klein_t2i",
+            state="queued",
+            created_at=time.time(),
+        )
         async with self._lock:
             self._jobs[job_id] = job
 
@@ -79,9 +88,16 @@ class ImgGenManager:
         asyncio.create_task(self._run_job_common(job_id, run_fn))
         return job_id
 
-    async def submit_flux2_klein_t2i_distilled(self, params: Flux2KleinT2IDistilledParams) -> str:
+    async def submit_flux2_klein_t2i_distilled(
+        self, params: Flux2KleinT2IDistilledParams
+    ) -> str:
         job_id = uuid.uuid4().hex
-        job = ImgJob(job_id=job_id, pipeline="flux2_klein_t2i_distilled", state="queued", created_at=time.time())
+        job = ImgJob(
+            job_id=job_id,
+            pipeline="flux2_klein_t2i_distilled",
+            state="queued",
+            created_at=time.time(),
+        )
         async with self._lock:
             self._jobs[job_id] = job
 
@@ -91,9 +107,16 @@ class ImgGenManager:
         asyncio.create_task(self._run_job_common(job_id, run_fn))
         return job_id
 
-    async def submit_flux2_klein_t2i_distilled_gguf(self, params: Flux2KleinT2IDistilledGGUFParams) -> str:
+    async def submit_flux2_klein_t2i_distilled_gguf(
+        self, params: Flux2KleinT2IDistilledGGUFParams
+    ) -> str:
         job_id = uuid.uuid4().hex
-        job = ImgJob(job_id=job_id, pipeline="flux2_klein_t2i_distilled_gguf", state="queued", created_at=time.time())
+        job = ImgJob(
+            job_id=job_id,
+            pipeline="flux2_klein_t2i_distilled_gguf",
+            state="queued",
+            created_at=time.time(),
+        )
         async with self._lock:
             self._jobs[job_id] = job
 
@@ -121,21 +144,28 @@ class ImgGenManager:
                 saved: list[dict[str, Any]] = []
                 idx = 0
                 for _, out in outputs.items():
-                    for img in (out.get("images") or []):
+                    for img in out.get("images") or []:
                         b = await self.provider.client.view(
                             filename=img["filename"],
                             subfolder=img.get("subfolder", ""),
                             type_=img.get("type", "output"),
                         )
                         stored = save_image_bytes(job_id, idx, b, ext="png")
-                        saved.append({"index": idx, "url": stored.url, "path": str(stored.path)})
+                        saved.append(
+                            {"index": idx, "url": stored.url, "path": str(stored.path)}
+                        )
                         idx += 1
 
                 job.images = saved
                 job.ended_at = time.time()
                 job.state = "done"
-                log.info("IMGGEN done job_id=%s pipeline=%s prompt_id=%s images=%s",
-                         job_id, job.pipeline, job.prompt_id, len(saved))
+                log.info(
+                    "IMGGEN done job_id=%s pipeline=%s prompt_id=%s images=%s",
+                    job_id,
+                    job.pipeline,
+                    job.prompt_id,
+                    len(saved),
+                )
 
             except asyncio.CancelledError:
                 job.ended_at = time.time()
@@ -146,4 +176,6 @@ class ImgGenManager:
                 job.ended_at = time.time()
                 job.state = "error"
                 job.error = repr(e)
-                log.exception("IMGGEN error job_id=%s pipeline=%s err=%r", job_id, job.pipeline, e)
+                log.exception(
+                    "IMGGEN error job_id=%s pipeline=%s err=%r", job_id, job.pipeline, e
+                )

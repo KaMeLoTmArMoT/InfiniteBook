@@ -6,7 +6,10 @@ class AppConfig(BaseSettings):
     Centralized app config.
     Can be overridden with environment variables or a .env file later.
     """
-    model_config = SettingsConfigDict(env_prefix="IB_", env_file=".env", env_file_encoding="utf-8")
+
+    model_config = SettingsConfigDict(
+        env_prefix="IB_", env_file=".env", env_file_encoding="utf-8"
+    )
     MODEL_NAME: str = "gemma3:12b"
 
     # Generation sizes

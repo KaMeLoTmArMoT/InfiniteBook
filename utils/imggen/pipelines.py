@@ -45,7 +45,9 @@ def load_template(templates_dir: str, name: str) -> dict[str, Any]:
     return json.loads(p.read_text(encoding="utf-8"))
 
 
-def build_flux2_klein_t2i(template: dict[str, Any], p: Flux2KleinT2IParams) -> dict[str, Any]:
+def build_flux2_klein_t2i(
+    template: dict[str, Any], p: Flux2KleinT2IParams
+) -> dict[str, Any]:
     g = json.loads(json.dumps(template))  # cheap deep copy
 
     g["76"]["inputs"]["value"] = p.prompt
@@ -62,7 +64,9 @@ def build_flux2_klein_t2i(template: dict[str, Any], p: Flux2KleinT2IParams) -> d
     return g
 
 
-def build_flux2_klein_t2i_distilled(template: dict[str, Any], p: Flux2KleinT2IDistilledParams) -> dict[str, Any]:
+def build_flux2_klein_t2i_distilled(
+    template: dict[str, Any], p: Flux2KleinT2IDistilledParams
+) -> dict[str, Any]:
     g = json.loads(json.dumps(template))
 
     g["76"]["inputs"]["value"] = p.prompt
@@ -78,8 +82,9 @@ def build_flux2_klein_t2i_distilled(template: dict[str, Any], p: Flux2KleinT2IDi
     return g
 
 
-def build_flux2_klein_t2i_distilled_gguf(template: dict[str, Any], p: Flux2KleinT2IDistilledGGUFParams) -> dict[
-    str, Any]:
+def build_flux2_klein_t2i_distilled_gguf(
+    template: dict[str, Any], p: Flux2KleinT2IDistilledGGUFParams
+) -> dict[str, Any]:
     g = json.loads(json.dumps(template))
 
     g["76"]["inputs"]["value"] = p.prompt
@@ -94,6 +99,7 @@ def build_flux2_klein_t2i_distilled_gguf(template: dict[str, Any], p: Flux2Klein
 
     g["78"]["inputs"]["filename_prefix"] = p.filename_prefix
     return g
+
 
 DEFAULT_STYLE_PROMPT = (
     "Futuristic Berlin, cyberpunk noir thriller mood. Rainy night, neon reflections on wet asphalt, "
@@ -107,12 +113,13 @@ DEFAULT_STYLE_ANCHOR = "Same visual style as the provided style reference image:
 DEFAULT_SCENE_BLOCK = "Full body shot, standing on a rainy urban street near a language school, wet pavement reflections, tense atmosphere, candid moment, looking over her shoulder."
 DEFAULT_CHARACTER_ANCHOR = "Akusa Ivanova, Eastern European refugee woman, vibrant auburn hair tied in a high ponytail, small scar on the chin, slim athletic build, tired determined eyes. Wears a tactical emerald green techwear jumpsuit, heavy black combat boots. A thin silver chain necklace (she touches it when nervous)."
 
+
 @dataclass(frozen=True)
 class CharacterFromStyleParams:
     style_anchor: str = ""
     scene_block: str = ""
     character_anchor: str = ""
-    style_image: str = ""     # filename in Comfy input/
+    style_image: str = ""  # filename in Comfy input/
     width: int = 768
     height: int = 1152
     steps: int = 4
@@ -120,7 +127,10 @@ class CharacterFromStyleParams:
     seed: int = 0
     filename_prefix: str = "HERO-BASE"
 
-def build_flux2_klein_character_style_ref_gguf(template: dict[str, Any], p: CharacterFromStyleParams) -> dict[str, Any]:
+
+def build_flux2_klein_character_style_ref_gguf(
+    template: dict[str, Any], p: CharacterFromStyleParams
+) -> dict[str, Any]:
     g = json.loads(json.dumps(template))
 
     sa = (p.style_anchor or "").strip() or DEFAULT_STYLE_ANCHOR

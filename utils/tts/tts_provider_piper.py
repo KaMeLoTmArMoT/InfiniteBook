@@ -6,7 +6,7 @@ from pathlib import Path
 from piper import PiperVoice, SynthesisConfig
 
 from utils.core_logger import log
-from utils.tts.tts_common import split_dialog_spans, silence_bytes
+from utils.tts.tts_common import silence_bytes, split_dialog_spans
 
 
 class PiperTtsProvider:
@@ -51,12 +51,18 @@ class PiperTtsProvider:
             if self.voice_narr is not None and self.voice_dialog is not None:
                 return
 
-            log.info("Piper init start narr=%s dialog=%s", self.narr_model, self.dialog_model)
+            log.info(
+                "Piper init start narr=%s dialog=%s", self.narr_model, self.dialog_model
+            )
 
             self.voice_narr = await asyncio.to_thread(PiperVoice.load, self.narr_model)
-            self.voice_dialog = await asyncio.to_thread(PiperVoice.load, self.dialog_model)
+            self.voice_dialog = await asyncio.to_thread(
+                PiperVoice.load, self.dialog_model
+            )
 
-            log.info("Piper init done narr=%s dialog=%s", self.narr_model, self.dialog_model)
+            log.info(
+                "Piper init done narr=%s dialog=%s", self.narr_model, self.dialog_model
+            )
 
     def unload(self) -> None:
         # PiperVoice doesn’t expose a formal unload; drop refs so GC can reclaim.
@@ -65,9 +71,13 @@ class PiperTtsProvider:
 
     def _ensure_loaded(self) -> None:
         if self.voice_narr is None or self.voice_dialog is None:
-            raise RuntimeError("Piper provider not initialized; call await ainit() first")
+            raise RuntimeError(
+                "Piper provider not initialized; call await ainit() first"
+            )
 
-    def write_wav_for_text(self, text: str, out_path: str, project_lang_code: str) -> str:
+    def write_wav_for_text(
+        self, text: str, out_path: str, project_lang_code: str
+    ) -> str:
         self._ensure_loaded()
 
         spans = split_dialog_spans(text, project_lang_code)
@@ -91,7 +101,9 @@ class PiperTtsProvider:
 
         for i, s in enumerate(spans):
             if s.kind != "pause" and s.text.strip():
-                first_gen = pick_voice(s.kind).synthesize(s.text.strip(), syn_config=pick_cfg(s.kind))
+                first_gen = pick_voice(s.kind).synthesize(
+                    s.text.strip(), syn_config=pick_cfg(s.kind)
+                )
                 first_chunk = next(first_gen)
                 first_i = i
                 break
@@ -99,10 +111,18 @@ class PiperTtsProvider:
         if first_chunk is None or first_gen is None or first_i is None:
             raise ValueError("No non-empty spans")
 
-        sr, sw, ch = first_chunk.sample_rate, first_chunk.sample_width, first_chunk.sample_channels
+        sr, sw, ch = (
+            first_chunk.sample_rate,
+            first_chunk.sample_width,
+            first_chunk.sample_channels,
+        )
 
         def ensure_fmt(chunk) -> None:
-            if (chunk.sample_rate, chunk.sample_width, chunk.sample_channels) != (sr, sw, ch):
+            if (chunk.sample_rate, chunk.sample_width, chunk.sample_channels) != (
+                sr,
+                sw,
+                ch,
+            ):
                 raise ValueError("Audio format mismatch")
 
         t0 = time.perf_counter()
@@ -120,7 +140,7 @@ class PiperTtsProvider:
                 ensure_fmt(chunk)
                 wf.writeframes(chunk.audio_int16_bytes)
 
-            for s in spans[first_i + 1:]:
+            for s in spans[first_i + 1 :]:
                 if s.kind == "pause":
                     wf.writeframes(silence_bytes(450, sr, sw, ch))
                     continue

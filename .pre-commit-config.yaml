@@ -1,0 +1,16 @@
+exclude: |
+  (?x)^(
+    utils/tts/tts_common\.py
+  )$
+
+repos:
+  - repo: https://github.com/pycqa/isort
+    rev: 7.0.0
+    hooks:
+      - id: isort
+        args: ["--profile=black"]
+
+  - repo: https://github.com/psf/black
+    rev: 26.1.0
+    hooks:
+      - id: black

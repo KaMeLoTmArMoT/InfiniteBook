@@ -2,13 +2,13 @@ import asyncio
 from dataclasses import dataclass
 
 from utils.core_logger import log
-from utils.tts.tts_factory import build_piper, build_xtts, build_qwen, canon_lang
+from utils.tts.tts_factory import build_piper, build_qwen, build_xtts, canon_lang
 from utils.tts.tts_provider_qwen import QwenTtsProvider
 
 
 @dataclass
 class LoadedTts:
-    key: str          # "piper" | "xtts" | "qwen"
+    key: str  # "piper" | "xtts" | "qwen"
     lang: str | None  # canon lang (for piper/xtts); None for qwen
     provider: object
 
@@ -79,4 +79,8 @@ class TtsManager:
 
     def status(self) -> dict:
         cur = self._loaded
-        return {"loaded": bool(cur), "key": cur.key if cur else None, "lang": cur.lang if cur else None}
+        return {
+            "loaded": bool(cur),
+            "key": cur.key if cur else None,
+            "lang": cur.lang if cur else None,
+        }

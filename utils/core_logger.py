@@ -13,10 +13,10 @@ def setup_logger(name: str = "InfiniteBook", log_file: str = "app_debug.log"):
     if logger.hasHandlers():
         logger.handlers.clear()
 
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
 
     # File Handler (DEBUG - everything)
-    fh = logging.FileHandler(log_file, encoding='utf-8')
+    fh = logging.FileHandler(log_file, encoding="utf-8")
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(formatter)
     logger.addHandler(fh)

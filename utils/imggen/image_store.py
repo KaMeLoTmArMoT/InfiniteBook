@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
-import shutil
 
 IMG_ROOT = Path("data/images")
 
@@ -23,7 +23,9 @@ def image_url(job_id: str, index: int) -> str:
     return f"/api/imggen/image/{job_id}/{index}"
 
 
-def save_image_bytes(job_id: str, index: int, data: bytes, ext: str = "png") -> StoredImage:
+def save_image_bytes(
+    job_id: str, index: int, data: bytes, ext: str = "png"
+) -> StoredImage:
     p = image_path(job_id, index, ext=ext)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_bytes(data)

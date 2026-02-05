@@ -3,16 +3,15 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from typing import Any
-from ollama import AsyncClient
 
 import httpx
+from google import genai
+from ollama import AsyncClient
 from pydantic import BaseModel, ValidationError
 
 from utils.core_logger import log
 from utils.core_models import CFG
-from utils.utils import clean_json_response, _json_hint
-
-from google import genai
+from utils.utils import _json_hint, clean_json_response
 
 
 @dataclass
@@ -32,13 +31,13 @@ class OllamaModel:
         self.model_name = model_name
 
     async def generate_json(
-            self,
-            prompt: str,
-            schema: dict,
-            *,
-            temperature: float,
-            options: dict | None = None,
-            tag: str = "ollama",
+        self,
+        prompt: str,
+        schema: dict,
+        *,
+        temperature: float,
+        options: dict | None = None,
+        tag: str = "ollama",
     ) -> GenerateResult:
         opts = {"temperature": temperature}
         if options:
@@ -68,7 +67,10 @@ class OllamaModel:
 
         log.info(
             "[ollama] %s prompt_eval_count=%s eval_count=%s done_reason=%s",
-            tag, meta["prompt_eval_count"], meta["eval_count"], meta["done_reason"]
+            tag,
+            meta["prompt_eval_count"],
+            meta["eval_count"],
+            meta["done_reason"],
         )
 
         return GenerateResult(raw_text=raw, meta=meta)
@@ -80,7 +82,9 @@ class OpenRouterModel:
     Authentication is Bearer token.
     """
 
-    def __init__(self, *, api_base: str, api_key: str, model_name: str, timeout_sec: float = 60.0):
+    def __init__(
+        self, *, api_base: str, api_key: str, model_name: str, timeout_sec: float = 60.0
+    ):
         self.api_base = api_base.rstrip("/")
         self.api_key = api_key
         self.model_name = model_name
@@ -94,7 +98,9 @@ class OpenRouterModel:
         # OpenRouter documents GET /api/v1/key to check limit/usage.
         url = f"{self.api_base}/api/v1/key"
         try:
-            r = await self._client.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
+            r = await self._client.get(
+                url, headers={"Authorization": f"Bearer {self.api_key}"}
+            )
             r.raise_for_status()
             return r.json()
         except Exception as e:
@@ -102,13 +108,13 @@ class OpenRouterModel:
             return None
 
     async def generate_json(
-            self,
-            prompt: str,
-            schema: dict,
-            *,
-            temperature: float,
-            options: dict | None = None,
-            tag: str = "openrouter",
+        self,
+        prompt: str,
+        schema: dict,
+        *,
+        temperature: float,
+        options: dict | None = None,
+        tag: str = "openrouter",
     ) -> GenerateResult:
         max_tokens = options.get("max_tokens") if options else None
 
@@ -135,7 +141,11 @@ class OpenRouterModel:
         except httpx.HTTPStatusError as e:
             # Log OpenRouter’s actual error JSON/text for debugging
             body = e.response.text
-            log.error("OpenRouter 4xx/5xx: status=%s body=%s", e.response.status_code, body[:2000])
+            log.error(
+                "OpenRouter 4xx/5xx: status=%s body=%s",
+                e.response.status_code,
+                body[:2000],
+            )
             raise
 
         data = r.json()
@@ -154,19 +164,21 @@ class OpenRouterModel:
 
 
 class GoogleGenAIModel:
-    def __init__(self, *, api_key: str, model_name: str, enable_structured: bool = False):
+    def __init__(
+        self, *, api_key: str, model_name: str, enable_structured: bool = False
+    ):
         self.model_name = model_name
         self.enable_structured = enable_structured
         self.client = genai.Client(api_key=api_key)
 
     async def generate_json(
-            self,
-            prompt: str,
-            schema: dict,
-            *,
-            temperature: float,
-            options: dict | None = None,
-            tag: str = "google",
+        self,
+        prompt: str,
+        schema: dict,
+        *,
+        temperature: float,
+        options: dict | None = None,
+        tag: str = "google",
     ) -> GenerateResult:
         # Gemma-3-27b-it: JSON mode is not enabled -> must use prompt-based JSON.
         p = prompt + _json_hint(schema)
@@ -192,7 +204,11 @@ class GoogleGenAIModel:
             # If structured mode is enabled but not supported, retry once without it.
             msg = str(e)
             if self.enable_structured and "JSON mode is not enabled" in msg:
-                log.warning("[google] %s json mode unsupported for %s -> retrying without schema", tag, self.model_name)
+                log.warning(
+                    "[google] %s json mode unsupported for %s -> retrying without schema",
+                    tag,
+                    self.model_name,
+                )
                 cfg.pop("response_mime_type", None)
                 cfg.pop("response_json_schema", None)
                 resp = self.client.models.generate_content(
@@ -237,14 +253,14 @@ class ModelGateway:
             await self.impl.close()
 
     async def generate_json_validated(
-            self,
-            prompt: str,
-            response_model: type[BaseModel],
-            *,
-            temperature: float,
-            max_retries: int,
-            options: dict | None = None,
-            tag: str = "llm",
+        self,
+        prompt: str,
+        response_model: type[BaseModel],
+        *,
+        temperature: float,
+        max_retries: int,
+        options: dict | None = None,
+        tag: str = "llm",
     ) -> BaseModel:
         schema = response_model.model_json_schema()
         last_error: Exception | None = None
@@ -258,7 +274,8 @@ class ModelGateway:
                     p = p + "\nINVALID PREVIOUS OUTPUT:\n" + last_raw
 
             res = await self.impl.generate_json(
-                p, schema,
+                p,
+                schema,
                 temperature=temperature,
                 options=options,
                 tag=f"{tag}_attempt_{attempt}",

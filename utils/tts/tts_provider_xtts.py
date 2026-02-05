@@ -10,7 +10,7 @@ from TTS.api import TTS
 
 from utils.config import CFG
 from utils.core_logger import log
-from utils.tts.tts_common import split_dialog_spans, silence_bytes
+from utils.tts.tts_common import silence_bytes, split_dialog_spans
 
 
 def float_to_int16_bytes(wav_float: np.ndarray) -> bytes:
@@ -54,17 +54,17 @@ class XttsTtsProvider:
     """
 
     def __init__(
-            self,
-            model_name: str,
-            narr_voice: str,
-            dialog_voice: str,
-            language: str = "en",
-            lead_in_ms: int = 1000,
-            gap_ms: int = 60,
-            pause_ms: int = 450,
-            fade_ms: int = 20,
-            device: str | None = None,
-            finetune_dir: str | None = None,  # NEW (optional)
+        self,
+        model_name: str,
+        narr_voice: str,
+        dialog_voice: str,
+        language: str = "en",
+        lead_in_ms: int = 1000,
+        gap_ms: int = 60,
+        pause_ms: int = 450,
+        fade_ms: int = 20,
+        device: str | None = None,
+        finetune_dir: str | None = None,  # NEW (optional)
     ):
         self.model_name = model_name
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -119,7 +119,9 @@ class XttsTtsProvider:
                     self.tts = await asyncio.to_thread(_load_finetune)
                     self._loaded_variant = "finetune"
                 except Exception as e:
-                    log.warning("XTTS finetune load failed -> fallback to default: %r", e)
+                    log.warning(
+                        "XTTS finetune load failed -> fallback to default: %r", e
+                    )
                     self.tts = await asyncio.to_thread(_load_default)
                     self._loaded_variant = "default"
             else:
@@ -147,7 +149,9 @@ class XttsTtsProvider:
 
     def _ensure_loaded(self) -> None:
         if self.tts is None:
-            raise RuntimeError("XTTS provider is not initialized; call await ainit() first")
+            raise RuntimeError(
+                "XTTS provider is not initialized; call await ainit() first"
+            )
 
     def _speaker_exists(self, name: str) -> bool:
         if not name or self.tts is None:
@@ -173,13 +177,19 @@ class XttsTtsProvider:
         if not CFG.XTTS_USE_VOICE_RU_CUSTOM:
             return default
 
-        custom = CFG.XTTS_DIALOG_VOICE_RU_CUSTOM if kind == "dialog" else CFG.XTTS_NARR_VOICE_RU_CUSTOM
+        custom = (
+            CFG.XTTS_DIALOG_VOICE_RU_CUSTOM
+            if kind == "dialog"
+            else CFG.XTTS_NARR_VOICE_RU_CUSTOM
+        )
         if not custom:
             return default
 
         return custom if self._speaker_exists(custom) else default
 
-    def write_wav_for_text(self, text: str, out_path: str, project_lang_code: str) -> str:
+    def write_wav_for_text(
+        self, text: str, out_path: str, project_lang_code: str
+    ) -> str:
         self._ensure_loaded()
 
         spans = split_dialog_spans(text, project_lang_code)
@@ -198,18 +208,24 @@ class XttsTtsProvider:
             wf.setnchannels(self.ch)
 
             if self.lead_in_ms > 0:
-                wf.writeframes(silence_bytes(self.lead_in_ms, self.sr, self.sw, self.ch))
+                wf.writeframes(
+                    silence_bytes(self.lead_in_ms, self.sr, self.sw, self.ch)
+                )
 
             for s in spans:
                 if s.kind == "pause":
-                    wf.writeframes(silence_bytes(self.pause_ms, self.sr, self.sw, self.ch))
+                    wf.writeframes(
+                        silence_bytes(self.pause_ms, self.sr, self.sw, self.ch)
+                    )
                     continue
 
                 if not s.text.strip():
                     continue
 
                 if self.gap_ms > 0:
-                    wf.writeframes(silence_bytes(self.gap_ms, self.sr, self.sw, self.ch))
+                    wf.writeframes(
+                        silence_bytes(self.gap_ms, self.sr, self.sw, self.ch)
+                    )
 
                 speaker = self._pick_speaker(s.kind, project_lang_code)
                 # log.info("Speaker: %s", speaker)
@@ -219,6 +235,10 @@ class XttsTtsProvider:
                 wav = apply_fade_in_out(wav, sr=self.sr, fade_ms=self.fade_ms)
                 wf.writeframes(float_to_int16_bytes(wav))
 
-        log.info("XttsTtsProvider: generated in %.2fs (variant=%s)", time.perf_counter() - t0, self._loaded_variant)
+        log.info(
+            "XttsTtsProvider: generated in %.2fs (variant=%s)",
+            time.perf_counter() - t0,
+            self._loaded_variant,
+        )
         Path(tmp).replace(out_path)
         return out_path
