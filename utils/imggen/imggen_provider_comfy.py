@@ -1,3 +1,4 @@
+# utils/imggen/imggen_provider_comfy.py
 from __future__ import annotations
 
 import random
@@ -7,7 +8,6 @@ from typing import Any
 from utils.core_logger import log
 from utils.imggen.comfy_client import ComfyClient
 from utils.imggen.pipelines import (
-    DEFAULT_STYLE_PROMPT,
     CharacterFromStyleParams,
     Flux2KleinT2IDistilledGGUFParams,
     Flux2KleinT2IDistilledParams,
@@ -18,6 +18,7 @@ from utils.imggen.pipelines import (
     build_flux2_klein_t2i_distilled_gguf,
     load_template,
 )
+from utils.prompts import DEFAULT_STYLE_PROMPT
 
 
 class ComfyImgGenProvider:

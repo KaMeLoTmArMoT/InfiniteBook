@@ -1,43 +1,21 @@
+# utils/imggen/pipelines.py
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-
-@dataclass(frozen=True)
-class Flux2KleinT2IParams:
-    prompt: str
-    negative: str = ""
-    width: int = 1024
-    height: int = 1024
-    steps: int = 20
-    cfg: float = 5.0
-    seed: int = 0
-    filename_prefix: str = "Flux2-Klein"
-
-
-@dataclass(frozen=True)
-class Flux2KleinT2IDistilledParams:
-    prompt: str
-    width: int = 1024
-    height: int = 1024
-    seed: int = 0
-    filename_prefix: str = "Flux2-Klein"
-    steps: int = 4
-    cfg: float = 1.0
-
-
-@dataclass(frozen=True)
-class Flux2KleinT2IDistilledGGUFParams:
-    prompt: str
-    width: int = 768
-    height: int = 1152
-    seed: int = 0
-    filename_prefix: str = "Flux2-Klein"
-    steps: int = 4
-    cfg: float = 1.0
+from utils.prompts import (
+    DEFAULT_CHARACTER_ANCHOR,
+    DEFAULT_SCENE_BLOCK,
+    DEFAULT_STYLE_ANCHOR,
+)
+from utils.pydantic_models import (
+    CharacterFromStyleParams,
+    Flux2KleinT2IDistilledGGUFParams,
+    Flux2KleinT2IDistilledParams,
+    Flux2KleinT2IParams,
+)
 
 
 def load_template(templates_dir: str, name: str) -> dict[str, Any]:
@@ -99,33 +77,6 @@ def build_flux2_klein_t2i_distilled_gguf(
 
     g["78"]["inputs"]["filename_prefix"] = p.filename_prefix
     return g
-
-
-DEFAULT_STYLE_PROMPT = (
-    "Futuristic Berlin, cyberpunk noir thriller mood. Rainy night, neon reflections on wet asphalt, "
-    "dirty alley + street-level view near a language school entrance, holographic ads in German, "
-    "grime, cables, steam, puddles, cigarette smoke, synthetic drug vibe. High-contrast noir lighting, "
-    "deep shadows, cyan/magenta neon glow, slight fog, flash-like highlights, early 2000s digital camera "
-    "aesthetic, subtle noise and chromatic aberration. Cinematic composition, believable realism, "
-    "documentary candid feel, not glossy, not clean."
-)
-DEFAULT_STYLE_ANCHOR = "Same visual style as the provided style reference image: cyberpunk noir, rainy neon Berlin, early 2000s digicam flash, slight noise, high contrast, cyan/magenta neon, gritty documentary realism."
-DEFAULT_SCENE_BLOCK = "Full body shot, standing on a rainy urban street near a language school, wet pavement reflections, tense atmosphere, candid moment, looking over her shoulder."
-DEFAULT_CHARACTER_ANCHOR = "Akusa Ivanova, Eastern European refugee woman, vibrant auburn hair tied in a high ponytail, small scar on the chin, slim athletic build, tired determined eyes. Wears a tactical emerald green techwear jumpsuit, heavy black combat boots. A thin silver chain necklace (she touches it when nervous)."
-
-
-@dataclass(frozen=True)
-class CharacterFromStyleParams:
-    style_anchor: str = ""
-    scene_block: str = ""
-    character_anchor: str = ""
-    style_image: str = ""  # filename in Comfy input/
-    width: int = 768
-    height: int = 1152
-    steps: int = 4
-    cfg: float = 1.0
-    seed: int = 0
-    filename_prefix: str = "HERO-BASE"
 
 
 def build_flux2_klein_character_style_ref_gguf(

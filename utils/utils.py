@@ -236,15 +236,3 @@ def make_project_id(title: str) -> str:
     # 6 hex chars = short, readable, low collision
     short = secrets.token_hex(3)
     return f"{_slug(title)}-{short}"
-
-
-def _kv_cover_seq_key() -> str:
-    return "img:cover:seq"
-
-
-async def _next_cover_seq(ps) -> int:
-    obj = await ps.a_kv_get(_kv_cover_seq_key()) or {}
-    cur = int(obj.get("value") or 0)
-    nxt = cur + 1
-    await ps.a_kv_set(_kv_cover_seq_key(), {"value": nxt})
-    return nxt

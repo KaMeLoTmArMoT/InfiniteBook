@@ -223,3 +223,42 @@ Rules:
 - SCENE_BLOCK: composition and environment only (objects, architecture, landscape).
 - Avoid copyrighted characters or brand names.
 """.strip()
+
+DEFAULT_STYLE_PROMPT = (
+    "Futuristic Berlin, cyberpunk noir thriller mood. Rainy night, neon reflections on wet asphalt, "
+    "dirty alley + street-level view near a language school entrance, holographic ads in German, "
+    "grime, cables, steam, puddles, cigarette smoke, synthetic drug vibe. High-contrast noir lighting, "
+    "deep shadows, cyan/magenta neon glow, slight fog, flash-like highlights, early 2000s digital camera "
+    "aesthetic, subtle noise and chromatic aberration. Cinematic composition, believable realism, "
+    "documentary candid feel, not glossy, not clean."
+)
+DEFAULT_STYLE_ANCHOR = "Same visual style as the provided style reference image: cyberpunk noir, rainy neon Berlin, early 2000s digicam flash, slight noise, high contrast, cyan/magenta neon, gritty documentary realism."
+DEFAULT_SCENE_BLOCK = "Full body shot, standing on a rainy urban street near a language school, wet pavement reflections, tense atmosphere, candid moment, looking over her shoulder."
+DEFAULT_CHARACTER_ANCHOR = "Akusa Ivanova, Eastern European refugee woman, vibrant auburn hair tied in a high ponytail, small scar on the chin, slim athletic build, tired determined eyes. Wears a tactical emerald green techwear jumpsuit, heavy black combat boots. A thin silver chain necklace (she touches it when nervous)."
+
+
+PROMPT_CHARACTER_ANCHORS_BATCH = """
+You generate prompt components for a ComfyUI pipeline that uses:
+STYLE_ANCHOR + SCENE_BLOCK + CHARACTER_ANCHOR and a STYLE_IMAGE reference.
+
+Return JSON with keys:
+- style_anchor: string (shared for all characters)
+- scene_block: string (shared for all characters)
+- items: array of {char_id, name, character_anchor}
+
+Rules:
+- items length MUST equal the number of input characters.
+- Use same language as the input.
+- No copyrighted characters, no brand names.
+- style_anchor MUST start with: "Same visual style as the provided style reference image:"
+- scene_block: consistent framing for all (full body shot, readable pose, simple environment).
+- character_anchor: identity only (face/hair/body, outfit, unique marks, mood). Do not repeat scene.
+
+Story:
+Title: {title}
+Genre: {genre}
+Setting/Tone: {setting}
+
+Characters ({n}):
+{characters_block}
+""".strip()

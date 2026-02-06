@@ -1,4 +1,5 @@
 # utils/pydantic_models.py
+from dataclasses import dataclass
 from typing import List, Literal
 
 from pydantic import BaseModel, Field
@@ -168,3 +169,76 @@ class CharacterReq(BaseModel):
 class FluxCoverPrompt(BaseModel):
     STYLE_ANCHOR: str = ""
     SCENE_BLOCK: str = ""
+
+
+@dataclass(frozen=True)
+class Flux2KleinT2IParams:
+    prompt: str
+    negative: str = ""
+    width: int = 1024
+    height: int = 1024
+    steps: int = 20
+    cfg: float = 5.0
+    seed: int = 0
+    filename_prefix: str = "Flux2-Klein"
+
+
+@dataclass(frozen=True)
+class Flux2KleinT2IDistilledParams:
+    prompt: str
+    width: int = 1024
+    height: int = 1024
+    seed: int = 0
+    filename_prefix: str = "Flux2-Klein"
+    steps: int = 4
+    cfg: float = 1.0
+
+
+@dataclass(frozen=True)
+class Flux2KleinT2IDistilledGGUFParams:
+    prompt: str
+    width: int = 768
+    height: int = 1152
+    seed: int = 0
+    filename_prefix: str = "Flux2-Klein"
+    steps: int = 4
+    cfg: float = 1.0
+
+
+@dataclass(frozen=True)
+class CharacterFromStyleParams:
+    style_anchor: str = ""
+    scene_block: str = ""
+    character_anchor: str = ""
+    style_image: str = ""  # filename in Comfy input/
+    width: int = 768
+    height: int = 1152
+    steps: int = 4
+    cfg: float = 1.0
+    seed: int = 0
+    filename_prefix: str = "HERO-BASE"
+
+
+class CharacterAnchorItem(BaseModel):
+    char_id: int | None = None
+    name: str
+    character_anchor: str
+
+
+class CharacterImageAnchorsBatch(BaseModel):
+    style_anchor: str
+    scene_block: str
+    items: list[CharacterAnchorItem] = Field(min_length=1)
+
+
+class CharacterIn(BaseModel):
+    id: int
+    name: str
+    description: str = ""
+
+
+class CharactersAnchorsRequest(BaseModel):
+    title: str
+    genre: str
+    setting: str = ""
+    characters: list[CharacterIn]
