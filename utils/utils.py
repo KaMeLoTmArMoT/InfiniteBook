@@ -2,6 +2,8 @@
 import asyncio
 import hashlib
 import json
+import re
+import secrets
 
 import ollama
 import psutil
@@ -221,3 +223,28 @@ async def require_project(store, project_id: str):
     if not await store.a_project_exists(project_id):
         raise HTTPException(status_code=404, detail="project not found")
     return store.scoped(project_id)
+
+
+def _slug(s: str) -> str:
+    s = (s or "").strip().lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    s = re.sub(r"-{2,}", "-", s).strip("-")
+    return s or "project"
+
+
+def make_project_id(title: str) -> str:
+    # 6 hex chars = short, readable, low collision
+    short = secrets.token_hex(3)
+    return f"{_slug(title)}-{short}"
+
+
+def _kv_cover_seq_key() -> str:
+    return "img:cover:seq"
+
+
+async def _next_cover_seq(ps) -> int:
+    obj = await ps.a_kv_get(_kv_cover_seq_key()) or {}
+    cur = int(obj.get("value") or 0)
+    nxt = cur + 1
+    await ps.a_kv_set(_kv_cover_seq_key(), {"value": nxt})
+    return nxt

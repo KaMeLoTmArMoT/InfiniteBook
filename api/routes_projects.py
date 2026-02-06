@@ -1,15 +1,65 @@
 # api/routes_projects.py
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
+from pathlib import Path
+from typing import TypeVar
 
+from fastapi import APIRouter, Request
+from fastapi.responses import FileResponse
+
+from api.routes_imggen import mgr as IMG_MGR
 from utils.core_logger import log
 from utils.core_models import *
+from utils.imggen.cover_service import (
+    _attach_task_logger,
+    _generate_cover_image_task,
+    _kv_job_key,
+    _kv_result_key,
+)
 from utils.prompts import *
 from utils.utils import *
 from utils.utils import _build_write_context
 
 router = APIRouter(prefix="/api", tags=["projects"])
+TModel = TypeVar("TModel", bound=BaseModel)
+
+
+@router.post("/projects/{project_id}/generatecover")
+async def generate_cover(request: Request, project_id: str):
+    await require_project(request.app.state.store, project_id)
+    task = asyncio.create_task(_generate_cover_image_task(request, project_id, IMG_MGR))
+    _attach_task_logger(task, f"cover:{project_id}")
+    return {"ok": True}  # TODO: random seed
+
+
+@router.get("/projects/{project_id}/cover/status")
+async def cover_status(request: Request, project_id: str):
+    ps = await require_project(request.app.state.store, project_id)
+    return await ps.a_kv_get(_kv_job_key("cover")) or {"status": "IDLE"}
+
+
+@router.get("/projects/{project_id}/cover/result")
+async def cover_result(request: Request, project_id: str):
+    ps = await require_project(request.app.state.store, project_id)
+    obj = await ps.a_kv_get(_kv_result_key("cover")) or {}
+    if obj.get("saved_path"):
+        obj["image_url"] = f"/api/projects/{project_id}/cover/image"
+    return obj
+
+
+@router.get("/projects/{project_id}/cover/image")
+async def cover_image(request: Request, project_id: str):
+    ps = await require_project(request.app.state.store, project_id)
+    res = await ps.a_kv_get(_kv_result_key("cover")) or {}
+    saved_path = res.get("saved_path")
+    if not saved_path:
+        raise HTTPException(status_code=404, detail="cover not generated")
+
+    p = Path(saved_path)
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="cover file missing")
+
+    return FileResponse(str(p), media_type="image/png")
 
 
 # --- ASYNC OLLAMA HELPER ---
@@ -20,7 +70,7 @@ async def call_llm_json(
     temperature: float,
     max_retries: int = CFG.LLM_MAX_RETRIES,
     options_extra: dict | None = None,
-) -> BaseModel:
+) -> TModel:
     return await model.generate_json_validated(
         prompt,
         response_model,
@@ -69,7 +119,7 @@ async def refine_idea(request: Request, project_id: str, req: RefineRequest):
     store = request.app.state.store
     model = request.app.state.model
     log.info(
-        f"Step 1: Refining idea. Genre='{req.genre}', Idea='{req.idea}', Project={project_id}"
+        f"Step 1: Refining idea. Genre='{req.genre}', Idea='{req.idea[:50]}...', Project={project_id}"
     )
     project_lang_code = await store.a_get_project_language(project_id)
     project_language = lang_label(project_lang_code)
@@ -100,9 +150,25 @@ async def generate_plot(request: Request, project_id: str, req: PlotRequest):
     store = request.app.state.store
     model = request.app.state.model
     ps = await require_project(store, project_id)
+
+    await ps.a_kv_set("selected", req.model_dump())
+    job = await ps.a_kv_get(_kv_job_key("cover")) or {}
+    if job.get("status") != "RUNNING":
+        log.info(
+            f"Step 2.1: Generating image. Project={project_id}, Title='{req.title}'"
+        )
+        task = asyncio.create_task(
+            _generate_cover_image_task(request, project_id, IMG_MGR)
+        )
+        _attach_task_logger(task, f"cover:{project_id}")
+    else:
+        log.info(
+            f"Step 2.1: Image generation already in progress. Project={project_id}, Title='{req.title}'"
+        )
+
     project_lang_code = await store.a_get_project_language(project_id)
     project_language = lang_label(project_lang_code)
-    log.info(f"Step 2: Generating plot. Project={project_id}, Title='{req.title}'")
+    log.info(f"Step 2.2: Generating plot. Project={project_id}, Title='{req.title}'")
 
     prompt = PROMPT_PLOT.format(
         title=req.title,
@@ -119,7 +185,6 @@ async def generate_plot(request: Request, project_id: str, req: PlotRequest):
     )
     payload = plot.model_dump()
     await ps.a_kv_set("plot", payload)
-    await ps.a_kv_set("selected", req.model_dump())
     return payload
 
 

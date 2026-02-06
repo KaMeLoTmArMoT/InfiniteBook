@@ -204,3 +204,22 @@ Rules:
 CHAPTER PROSE:
 {chapter_prose}
 """.strip()
+
+
+PROMPT_FLUX_COVER = """
+You write prompts for an image model Flux 2 klein (image generation).
+Return JSON with keys: STYLE_ANCHOR, SCENE_BLOCK.
+All values must be concise but detailed, in the same language as input.
+
+Project:
+Title: {title}
+Genre: {genre}
+Description: {description}
+
+Rules:
+- This is a WIDE BOOK COVER / BANNER image (16:9).
+- NO characters, NO faces, NO people silhouettes.
+- STYLE_ANCHOR: visual style, camera/film, color palette, lighting, texture.
+- SCENE_BLOCK: composition and environment only (objects, architecture, landscape).
+- Avoid copyrighted characters or brand names.
+""".strip()

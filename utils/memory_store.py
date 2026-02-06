@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import anyio
 
+from utils.utils import make_project_id
+
 DEFAULT_PROJECT_ID = "default"
 
 
@@ -216,7 +218,8 @@ class MemoryStore:
     # Project ops (sync)
     # -------------------------
     def create_project(self, title: str, language: str) -> Dict[str, Any]:
-        project_id = uuid.uuid4().hex
+        # project_id = uuid.uuid4().hex
+        project_id = make_project_id(title)
         with self._connect() as con:
             con.execute(
                 "INSERT INTO projects(id, title, language) VALUES(?, ?, ?)",

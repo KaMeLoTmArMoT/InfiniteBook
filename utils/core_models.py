@@ -1,3 +1,4 @@
+# utils/core_models.py
 from typing import List, Literal
 
 from pydantic import BaseModel, Field
@@ -162,3 +163,8 @@ class CharacterReq(BaseModel):
     cfg: float = 1.0
     seed: int = 0
     filename_prefix: str = "HERO-BASE"
+
+
+class FluxCoverPrompt(BaseModel):
+    STYLE_ANCHOR: str = ""
+    SCENE_BLOCK: str = ""

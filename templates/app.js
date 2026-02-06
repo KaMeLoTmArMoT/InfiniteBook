@@ -133,6 +133,12 @@ async function refreshProjectLanguageUI() {
   }
 }
 
+function renderProjectId() {
+  const el = $("#project-id");
+  if (!el) return;
+  el.textContent = projectId ? `${projectId}` : "";
+}
+
 /* ========= State ========= */
 let selectedData = null;
 let currentPlotData = null;
@@ -252,12 +258,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
   on("#step-4 #btn-write-it", "click", () => openStep("step-5", { scroll: true }));
 
+  on("#btn-cover-generate", "click", async () => {
+    try { await startCoverGeneration(); } catch (e) { console.error(e); alert("Cover generation failed"); }
+  });
+
+  on("#btn-cover-regenerate", "click", async () => {
+    try { await startCoverGeneration(); } catch (e) { console.error(e); alert("Cover regeneration failed"); }
+  });
+
   enableSingleOpenAccordion();
   wireCharacterDeleteDelegation();
   wireWriteBeatDelegation();
 
   loadStateOnStart();
   refreshProjectLanguageUI();
+  renderProjectId();
   connectMonitor();
 });
 
@@ -422,6 +437,7 @@ async function loadStateOnStart() {
     }
 
     updatePlanButtonUI();
+    await refreshCoverUI(true);
 
     if (currentBeats) openStep("step-5");
     else if (state.characters && (currentCharacters?.length || 0) > 0) openStep("step-3");
@@ -627,6 +643,7 @@ async function generatePlot() {
 
     setStepStatus("step-2", "Done");
     setDisabled("#btn-generate-chars", false);
+    await refreshCoverUI(true);
   } catch (e) {
     console.error(e);
     alert("Error generating plot");
@@ -650,6 +667,148 @@ function renderPlot(data) {
     `;
   });
   container.innerHTML = html;
+}
+
+async function fetchCoverStatus() {
+  await ensureProject();
+  return await fetchJSON(api("/cover/status"));
+}
+
+async function fetchCoverResult() {
+  await ensureProject();
+  return await fetchJSON(api("/cover/result"));
+}
+
+function coverImageUrlFromResult(result) {
+  const rel = result?.image_url || api("/cover/image");
+  const abs = new URL(rel, window.location.href).href;
+  return abs + (abs.includes("?") ? "&" : "?") + "t=" + Date.now();
+}
+
+async function startCoverGeneration() {
+  await ensureProject();
+  await fetchJSON(api("/generatecover"), { method: "POST" });
+  await refreshCoverUI(true);
+}
+
+let coverPollTimer = null;
+let coverPollInFlight = false;
+
+function stopCoverPoll() {
+  if (coverPollTimer) clearInterval(coverPollTimer);
+  coverPollTimer = null;
+  coverPollInFlight = false;
+}
+
+function setCoverStatusText(txt) {
+  const el = $("#cover-status");
+  if (el) el.textContent = txt;
+}
+
+function startCoverPoll() {
+  if (coverPollTimer) return;
+
+  coverPollTimer = setInterval(async () => {
+    if (coverPollInFlight) return;
+    coverPollInFlight = true;
+    try {
+      await refreshCoverUI(false);
+    } catch (e) {
+      // do NOT stop polling on transient errors
+      console.warn("cover poll tick failed", e);
+    } finally {
+      coverPollInFlight = false;
+    }
+  }, 2500);
+}
+
+async function refreshCoverUI(startPollingIfRunning = false) {
+  const box = $("#cover-box");
+  if (!box) return;
+
+  // show only on Step 2 context (we at least have selected or plot)
+  if (!currentPlotData && !selectedData) {
+    box.style.display = "none";
+    return;
+  }
+
+  box.style.display = "block";
+
+  const imgEl = $("#cover-img");
+  const genBtn = $("#btn-cover-generate");
+  const regenBtn = $("#btn-cover-regenerate");
+
+  try {
+    const st = await fetchCoverStatus();
+    const status = st?.status || "IDLE";
+
+    if (status === "RUNNING") {
+      setCoverStatusText("Generating...");
+      if (genBtn) genBtn.disabled = true;
+      if (regenBtn) regenBtn.disabled = true;
+
+      if (startPollingIfRunning) startCoverPoll();
+      return;
+    }
+
+    stopCoverPoll();
+
+    if (status === "ERROR") {
+      setCoverStatusText("Error (check logs)");
+      if (genBtn) { genBtn.style.display = "inline-block"; genBtn.disabled = false; }
+      if (regenBtn) { regenBtn.style.display = "none"; regenBtn.disabled = false; }
+      if (imgEl) imgEl.style.display = "none";
+      return;
+    }
+
+    if (status === "DONE") {
+      stopCoverPoll();
+      setCoverStatusText("Ready");
+
+      let result = null;
+      for (let i = 0; i < 5; i++) {
+        result = await fetchCoverResult();
+        const hasImage = !!(result?.saved_path || result?.image_url);
+        if (hasImage) break;
+        await new Promise(r => setTimeout(r, 300));
+      }
+
+      if (imgEl) {
+        imgEl.src = coverImageUrlFromResult(result);
+        imgEl.style.display = "block";
+      }
+
+      if (genBtn) genBtn.style.display = "none";
+      if (regenBtn) {
+        regenBtn.style.display = "inline-block";
+        regenBtn.disabled = false;
+      }
+      return;
+    }
+
+    // IDLE / unknown -> decide by presence of result
+    const result = await fetchCoverResult();
+    const hasImage = !!result?.saved_path || !!result?.image_url;
+
+    if (hasImage) {
+      setCoverStatusText("Ready");
+      if (genBtn) genBtn.style.display = "none";
+      if (regenBtn) regenBtn.style.display = "inline-block";
+      if (imgEl) {
+        imgEl.src = coverImageUrlFromResult(result);
+        imgEl.style.display = "block";
+      }
+    } else {
+      setCoverStatusText("(not created)");
+      if (genBtn) { genBtn.style.display = "inline-block"; genBtn.disabled = false; }
+      if (regenBtn) regenBtn.style.display = "none";
+      if (imgEl) imgEl.style.display = "none";
+    }
+  } catch (e) {
+    stopCoverPoll();
+    setCoverStatusText("Cover unavailable");
+    console.warn("cover ui refresh failed", e);
+  }
 }
 
 /* ========= Step 3 ========= */

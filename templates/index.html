@@ -15,6 +15,9 @@
               <div class="project-meta">
                   Language: <span id="project-language">...</span>
               </div>
+              <div class="project-meta">
+                  Project ID: <span id="project-id">...</span>
+              </div>
           </div>
 
           <a href="/projects" class="secondary secondary-btn">
@@ -61,6 +64,24 @@
       </summary>
 
       <div class="step-body">
+        <div id="cover-box"
+             style="display:none; margin-top:14px; padding:12px; border:1px solid #e2e8f0; border-radius:10px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                <div style="font-weight:700;">Cover image</div>
+                <div id="cover-status" style="color:#64748b; font-size:0.9rem;">(idle)</div>
+            </div>
+
+            <div style="display:flex; gap:12px; margin-top:10px; flex-wrap:wrap; align-items:center;">
+                <button id="btn-cover-generate" style="background:#0ea5e9;">Generate</button>
+                <button id="btn-cover-regenerate" style="background:#0ea5e9; display:none;">Regenerate</button>
+            </div>
+
+            <div style="margin-top:12px;">
+                <img id="cover-img" src="" alt="Cover"
+                     style="display:none; width:100%; max-width:100%; height:auto; margin:12px auto 0; border-radius:10px; border:1px solid #0f172a;">
+            </div>
+        </div>
+
         <h2>Chapter Outline</h2>
         <div class="loader" id="loader-2">Designing story arc...</div>
         <div id="plot-content" class="plot-container" style="display:none;"></div>
@@ -169,8 +190,8 @@
     </details>
   </div>
 
-  <!-- Monitoring Widget -->
-  <div id="monitor-widget">
+  <!-- Monitoring Widget, remove hidden="true" to show -->
+  <div id="monitor-widget" hidden="true">
     <div class="monitor-title">SYSTEM STATUS</div>
 
       <div class="mon-row">
