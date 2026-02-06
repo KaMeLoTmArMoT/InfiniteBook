@@ -4,7 +4,6 @@ from __future__ import annotations
 from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, Response
 
-from utils.core_models import *
 from utils.imggen.image_store import image_path
 from utils.imggen.imggen_manager import ImgGenManager
 from utils.imggen.pipelines import (
@@ -13,6 +12,7 @@ from utils.imggen.pipelines import (
     Flux2KleinT2IDistilledParams,
     Flux2KleinT2IParams,
 )
+from utils.pydantic_models import *
 
 router = APIRouter(prefix="/api/imggen", tags=["imggen"])
 

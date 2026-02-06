@@ -12,14 +12,14 @@ from api.routes_imggen import router as imggen_router
 from api.routes_projects import router as project_router
 from api.routes_speech import router as speech_router
 from utils.core_logger import log
-from utils.core_models import (
+from utils.memory_store import MemoryStore
+from utils.models import build_model_gateway
+from utils.pydantic_models import (
     CFG,
     CharacterPatch,
     ClearBeatRequest,
     ClearFromBeatRequest,
 )
-from utils.memory_store import MemoryStore
-from utils.models import build_model_gateway
 from utils.tts.tts_manager import TtsManager
 from utils.utils import (
     check_ollama_status,

@@ -10,7 +10,7 @@ from ollama import AsyncClient
 from pydantic import BaseModel, ValidationError
 
 from utils.core_logger import log
-from utils.core_models import CFG
+from utils.pydantic_models import CFG
 from utils.utils import _json_hint, clean_json_response
 
 

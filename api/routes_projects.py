@@ -9,7 +9,6 @@ from fastapi.responses import FileResponse
 
 from api.routes_imggen import mgr as IMG_MGR
 from utils.core_logger import log
-from utils.core_models import *
 from utils.imggen.cover_service import (
     _attach_task_logger,
     _generate_cover_image_task,
@@ -17,6 +16,7 @@ from utils.imggen.cover_service import (
     _kv_result_key,
 )
 from utils.prompts import *
+from utils.pydantic_models import *
 from utils.utils import *
 from utils.utils import _build_write_context
 

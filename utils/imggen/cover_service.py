@@ -8,9 +8,9 @@ from fastapi import Request
 
 from utils.config import CFG
 from utils.core_logger import log
-from utils.core_models import FluxCoverPrompt
 from utils.imggen.pipelines import Flux2KleinT2IDistilledGGUFParams
 from utils.prompts import PROMPT_FLUX_COVER
+from utils.pydantic_models import FluxCoverPrompt
 from utils.utils import _next_cover_seq, require_project
 
 IMG_DIR = Path("data/images/generated")

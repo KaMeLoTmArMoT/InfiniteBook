@@ -1,4 +1,4 @@
-# utils/core_models.py
+# utils/pydantic_models.py
 from typing import List, Literal
 
 from pydantic import BaseModel, Field
