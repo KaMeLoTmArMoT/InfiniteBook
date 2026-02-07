@@ -2,28 +2,36 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TypeVar
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, File, Request, UploadFile
 from fastapi.responses import FileResponse
 
 from api.routes_imggen import mgr as IMG_MGR
 from utils.core_logger import log
+from utils.imggen.character_service import (
+    generate_character_image_task,
+    service_generate_anchors,
+    service_get_image_path,
+    service_get_image_result,
+    service_get_image_status,
+    service_run_character_generation_pipeline,
+    service_upload_style_image,
+)
 from utils.imggen.cover_service import (
-    _attach_task_logger,
     _generate_cover_image_task,
     _kv_job_key,
     _kv_result_key,
 )
+from utils.imggen.job_utils import _attach_task_logger
 from utils.prompts import *
 from utils.pydantic_models import *
 from utils.utils import *
 from utils.utils import _build_write_context
 
 router = APIRouter(prefix="/api", tags=["projects"])
-TModel = TypeVar("TModel", bound=BaseModel)
 
 
+# --- COVER IMAGE ---
 @router.post("/projects/{project_id}/generatecover")
 async def generate_cover(request: Request, project_id: str):
     await require_project(request.app.state.store, project_id)
@@ -62,36 +70,23 @@ async def cover_image(request: Request, project_id: str):
     return FileResponse(str(p), media_type="image/png")
 
 
-# --- ASYNC OLLAMA HELPER ---
-async def call_llm_json(
-    model,
-    prompt: str,
-    response_model: type[BaseModel],
-    temperature: float,
-    max_retries: int = CFG.LLM_MAX_RETRIES,
-    options_extra: dict | None = None,
-) -> TModel:
-    return await model.generate_json_validated(
-        prompt,
-        response_model,
-        temperature=temperature,
-        max_retries=max_retries,
-        options=options_extra,
-        tag="call_llm_json",
-    )
+# --- MAIN STEPS ---
 
 
 @router.post("/projects/{project_id}/characters")
 async def generate_characters(
     request: Request, project_id: str, req: CharactersRequest
 ):
+    log.info(f"Step 3: Generating characters text. Project={project_id}")
+
     store = request.app.state.store
     model = request.app.state.model
     ps = await require_project(store, project_id)
+
     project_lang_code = await store.a_get_project_language(project_id)
     project_language = lang_label(project_lang_code)
-    # (same body as before, but replace `store` -> `ps`)
-    chars = await call_llm_json(
+
+    chars_resp = await call_llm_json(
         model,
         PROMPT_CHARACTERS.format(
             title=req.title,
@@ -109,9 +104,25 @@ async def generate_characters(
         CharactersResponse,
         temperature=CFG.TEMP_CHARACTERS,
     )
-    payload = chars.model_dump()
+
+    payload = chars_resp.model_dump()
     await ps.a_save_characters(payload)
-    return payload
+
+    db_chars = await ps.a_list_characters_grouped()
+
+    tasks_count = await service_run_character_generation_pipeline(
+        request=request,
+        project_id=project_id,
+        title=req.title,
+        genre=req.genre,
+        setting=(req.setting if hasattr(req, "setting") else ""),
+        db_chars=db_chars,
+        img_mgr=IMG_MGR,
+    )
+
+    log.info(f"Step 3 complete. Text saved. {tasks_count} image tasks started.")
+
+    return db_chars
 
 
 @router.post("/projects/{project_id}/refine")
@@ -303,6 +314,9 @@ async def write_beat(
     return payload
 
 
+# --- GENERALIZATION / CONTINUITY ---
+
+
 @router.post("/projects/{project_id}/chapter/continuity")
 async def build_chapter_continuity(
     request: Request, project_id: str, req: BuildContinuityRequest
@@ -330,3 +344,58 @@ async def build_chapter_continuity(
     payload = capsule.model_dump()
     await ps.a_kv_set(f"ch{req.chapter}_continuity", payload)
     return payload
+
+
+# --- CHARACTER ANCHORS ---
+
+
+@router.post("/projects/{project_id}/characters/anchors")
+async def generate_character_anchors(
+    request: Request, project_id: str, req: CharactersAnchorsRequest
+):
+    return await service_generate_anchors(
+        store=request.app.state.store,
+        model=request.app.state.model,
+        project_id=project_id,
+        req=req,
+    )
+
+
+@router.post("/projects/{project_id}/characters/{char_id}/generate_image")
+async def generate_character_image(request: Request, project_id: str, char_id: int):
+    await require_project(request.app.state.store, project_id)
+
+    task = asyncio.create_task(
+        generate_character_image_task(
+            request=request, project_id=project_id, char_id=char_id, img_mgr=IMG_MGR
+        )
+    )
+    _attach_task_logger(task, f"charimg:{project_id}:{char_id}")
+    return {"ok": True}
+
+
+@router.get("/projects/{project_id}/characters/{char_id}/image/status")
+async def character_image_status(request: Request, project_id: str, char_id: int):
+    return await service_get_image_status(request.app.state.store, project_id, char_id)
+
+
+@router.get("/projects/{project_id}/characters/{char_id}/image/result")
+async def character_image_result(request: Request, project_id: str, char_id: int):
+    return await service_get_image_result(request.app.state.store, project_id, char_id)
+
+
+@router.get("/projects/{project_id}/characters/{char_id}/image")
+async def character_image_file(request: Request, project_id: str, char_id: int):
+    path = await service_get_image_path(request.app.state.store, project_id, char_id)
+    return FileResponse(str(path), media_type="image/png")
+
+
+@router.post("/projects/{project_id}/style_image")
+async def set_style_image(
+    request: Request, project_id: str, file: UploadFile = File(...)
+):
+    img_mgr = getattr(request.app.state, "imggenprovider", None) or IMG_MGR
+
+    return await service_upload_style_image(
+        store=request.app.state.store, img_mgr=img_mgr, project_id=project_id, file=file
+    )

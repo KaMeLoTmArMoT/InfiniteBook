@@ -10,6 +10,10 @@ IMG_DIR = Path("data/images/generated")
 IMG_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _kv_style_image_key() -> str:
+    return "img:style:image"
+
+
 def _now_ts() -> int:
     return int(time.time())
 
@@ -37,12 +41,11 @@ async def _next_cover_seq(ps) -> int:
 
 
 async def _save_png_for_project(
-    store, project_id: str, png_bytes: bytes, kind: str = "cover"
+    ps, project_id: str, png_bytes: bytes, kind: str = "cover"
 ) -> str:
-    seq = await _next_cover_seq(store)
+    seq = await _next_cover_seq(ps)
     out = IMG_DIR / project_id
     out.mkdir(parents=True, exist_ok=True)
-    # fn = f"{kind}_{uuid.uuid4().hex}.png"
     fn = f"{kind}_{seq:04d}.png"
     path = out / fn
     await anyio.to_thread.run_sync(path.write_bytes, png_bytes)

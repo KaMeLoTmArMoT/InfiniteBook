@@ -4,11 +4,15 @@ import hashlib
 import json
 import re
 import secrets
+from typing import TypeVar
 
 import ollama
 import psutil
 import pynvml
 from fastapi import HTTPException
+from pydantic import BaseModel
+
+from utils.config import CFG
 
 
 # --- JSON HELPERS (fallback) ---
@@ -236,3 +240,25 @@ def make_project_id(title: str) -> str:
     # 6 hex chars = short, readable, low collision
     short = secrets.token_hex(3)
     return f"{_slug(title)}-{short}"
+
+
+TModel = TypeVar("TModel", bound=BaseModel)
+
+
+# --- ASYNC OLLAMA HELPER ---
+async def call_llm_json(
+    model,
+    prompt: str,
+    response_model: type[BaseModel],
+    temperature: float,
+    max_retries: int = CFG.LLM_MAX_RETRIES,
+    options_extra: dict | None = None,
+) -> TModel:
+    return await model.generate_json_validated(
+        prompt,
+        response_model,
+        temperature=temperature,
+        max_retries=max_retries,
+        options=options_extra,
+        tag="call_llm_json",
+    )

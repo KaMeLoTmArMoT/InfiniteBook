@@ -244,7 +244,7 @@ STYLE_ANCHOR + SCENE_BLOCK + CHARACTER_ANCHOR and a STYLE_IMAGE reference.
 Return JSON with keys:
 - style_anchor: string (shared for all characters)
 - scene_block: string (shared for all characters)
-- items: array of {char_id, name, character_anchor}
+- items: array of [char_id, name, character_anchor]
 
 Rules:
 - items length MUST equal the number of input characters.

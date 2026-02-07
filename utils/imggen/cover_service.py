@@ -1,24 +1,14 @@
 # utils/imggen/cover_service.py
-import asyncio
-import time
-from pathlib import Path
 
-import anyio
+
 from fastapi import Request
 
 from utils.config import CFG
-from utils.core_logger import log
+from utils.imggen.job_utils import _now_ts, _save_png_for_project
 from utils.imggen.pipelines import Flux2KleinT2IDistilledGGUFParams
 from utils.prompts import PROMPT_FLUX_COVER
 from utils.pydantic_models import FluxCoverPrompt
-from utils.utils import _next_cover_seq, require_project
-
-IMG_DIR = Path("data/images/generated")
-IMG_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _now_ts() -> int:
-    return int(time.time())
+from utils.utils import require_project
 
 
 def _kv_job_key(kind: str = "cover") -> str:
@@ -38,29 +28,6 @@ def _join_cover_prompt(anchors: dict) -> str:
     scene = (anchors.get("SCENE_BLOCK") or "").strip()
     parts = [p for p in (style, scene) if p]
     return "\n\n".join(parts).strip()
-
-
-def _attach_task_logger(task: asyncio.Task, label: str) -> None:
-    def _done(t: asyncio.Task):
-        try:
-            t.result()
-        except Exception as e:
-            log.exception("Background task failed (%s): %s", label, e)
-
-    task.add_done_callback(_done)
-
-
-async def _save_png_for_project(
-    store, project_id: str, png_bytes: bytes, kind: str = "cover"
-) -> str:
-    seq = await _next_cover_seq(store)
-    out = IMG_DIR / project_id
-    out.mkdir(parents=True, exist_ok=True)
-    # fn = f"{kind}_{uuid.uuid4().hex}.png"
-    fn = f"{kind}_{seq:04d}.png"
-    path = out / fn
-    await anyio.to_thread.run_sync(path.write_bytes, png_bytes)
-    return str(path)
 
 
 async def _generate_cover_image_task(
@@ -127,7 +94,7 @@ async def _generate_cover_image_task(
             type_=img_meta.get("type", "output"),
         )
 
-        saved_path = await _save_png_for_project(store, project_id, png, kind="cover")
+        saved_path = await _save_png_for_project(ps, project_id, png, kind="cover")
 
         result = {
             "status": "DONE",

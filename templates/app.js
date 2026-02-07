@@ -3,7 +3,8 @@ let projectId = localStorage.getItem("ib_project_id") || null;
 
 function api(path) {
   if (!projectId) throw new Error("projectId not set");
-  return `/api/projects/${projectId}${path}`;
+  const safePath = path.startsWith("/") ? path : `/${path}`;
+  return `/api/projects/${projectId}${safePath}`;
 }
 
 async function ensureProject() {
@@ -46,6 +47,13 @@ const setDisabled = (sel, disabled, root = document) => {
 };
 const setDisabledMany = (sels, disabled, root = document) => sels.forEach((s) => setDisabled(s, disabled, root));
 
+function highlightDialogueToHtml(txt) {
+  if (typeof window.highlightDialogueToHtml === 'function') return window.highlightDialogueToHtml(txt);
+  if (!txt) return "";
+  const escaped = txt.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return escaped.replace(/(".*?")/g, '<span style="color:#a5b4fc;">$1</span>');
+}
+
 const DEFAULT_SENTINEL = "__IBA_DEFAULT__";
 
 function languageLabel(code) {
@@ -84,7 +92,6 @@ function seedByLang(code) {
     };
   }
 
-  // en default
   return {
     genre: "Cyberpunk noir thriller",
     idea:
@@ -101,8 +108,6 @@ function applySeedIfDefault(langCode) {
   const ideaEl = $("#idea");
   if (!genreEl || !ideaEl) return;
 
-  // Only seed if BOTH fields are still defaults.
-  // This prevents overwriting user input or values restored from DB state. [file:227]
   if (!isDefaultSentinel(genreEl.value) || !isDefaultSentinel(ideaEl.value)) return;
 
   const seed = seedByLang(langCode);
@@ -118,7 +123,7 @@ async function refreshProjectLanguageUI() {
     const res = await fetchJSON("/api/projects");
     const items = res?.items || [];
 
-    const pid = projectId || localStorage.getItem("ib:project:id");
+    const pid = projectId || localStorage.getItem("ib_project_id");
     const proj = items.find((x) => x.id === pid) || items[0];
 
     const lang = (proj?.language || "en").toLowerCase();
@@ -144,13 +149,11 @@ let selectedData = null;
 let currentPlotData = null;
 let currentCharacters = null;
 
-let currentChapter = 1;      // 1-based
-let currentBeats = null;     // beats array for current chapter
-let beatTexts = {};          // { idx: text } for current chapter (0-based)
+let currentChapter = 1;
+let currentBeats = null;
+let beatTexts = {};
 
-// =======================
-// AUDIO UI v2 (multi TTS)
-// =======================
+/* ========= AUDIO UI v2 (multi TTS) ========= */
 
 const TTS_PROVIDERS = [
   { key: "piper", label: "Piper" },
@@ -158,14 +161,11 @@ const TTS_PROVIDERS = [
   { key: "qwen", label: "Qwen" },
 ];
 
-// beatAudio[idx][provider] = { exists, status, url }
 let beatAudio = {};
 
 function getActiveTtsProvider() {
   const el = $("#tts-providers");
   const raw = (el?.textContent || "").toLowerCase();
-
-  // Look for the first known provider name anywhere in the text
   const known = ["piper", "xtts", "qwen"];
   for (const k of known) {
     if (raw.includes(k)) return k;
@@ -205,7 +205,6 @@ function updateBeatAudioRowUI(idx) {
       genBtn.disabled = !(active && active === p.key);
     }
 
-    // If audio exists: show only audio (no "ready" label)
     if (stEl) {
       if (st.exists) {
         stEl.style.display = "none";
@@ -224,7 +223,6 @@ function updateBeatAudioRowUI(idx) {
 }
 
 window.onTtsProvidersChanged = function () {
-  // re-enable/disable Generate buttons based on newly-known active provider
   if (!currentBeats?.length) return;
   currentBeats.forEach((_, idx) => updateBeatAudioRowUI(idx));
 };
@@ -235,10 +233,8 @@ document.addEventListener("DOMContentLoaded", () => {
   on("#btn-generate-plot", "click", generatePlot);
   on("#btn-generate-chars", "click", generateCharacters);
 
-  // Step 4 plan button (scoped => immune to duplicate IDs)
   on("#step-4 #btn-plan-chapter", "click", planCurrentChapter);
 
-  // Optional legacy Step 3 button (if present)
   on("#btn-plan-chapter-step3", "click", async () => {
     currentChapter = 1;
     syncChapterUI();
@@ -266,14 +262,15 @@ document.addEventListener("DOMContentLoaded", () => {
     try { await startCoverGeneration(); } catch (e) { console.error(e); alert("Cover regeneration failed"); }
   });
 
-  enableSingleOpenAccordion();
+  if (typeof enableSingleOpenAccordion === 'function') enableSingleOpenAccordion();
   wireCharacterDeleteDelegation();
   wireWriteBeatDelegation();
 
   loadStateOnStart();
   refreshProjectLanguageUI();
+  wireCharacterImageDelegation();
   renderProjectId();
-  connectMonitor();
+  if (typeof connectMonitor === 'function') connectMonitor();
 });
 
 /* ========= UI helpers ========= */
@@ -357,10 +354,10 @@ async function loadChapterState(chapterNum, { open = false } = {}) {
 
     beatTexts = normalizeBeatTextsKeys(state.beat_texts || {});
     beatAudio = {};
-    await refreshAudioStatusForChapter(chapterNum);
 
-    // Re-render so audio elements appear when audio exists
     renderWriteBeats(currentBeats, beatTexts);
+
+    await refreshAudioStatusForChapter(chapterNum);
 
     setStep5Enabled(true);
     updatePlanButtonUI();
@@ -369,7 +366,6 @@ async function loadChapterState(chapterNum, { open = false } = {}) {
     return;
   }
 
-  // no plan
   currentBeats = null;
   beatTexts = {};
   if ($("#beats-list")) $("#beats-list").innerHTML = "";
@@ -406,15 +402,25 @@ async function loadStateOnStart() {
     }
 
     if (state.characters) {
-      renderCharacters(state.characters);
-      currentCharacters = [
-        ...(state.characters.protagonists || []),
-        ...(state.characters.antagonists || []),
-        ...(state.characters.supporting || []),
-      ];
-      show("#loader-3", false);
-      show("#chars-container", true);
-      setStepStatus("step-3", "Loaded");
+        renderCharacters(state.characters);
+        currentCharacters = [
+          ...(state.characters.protagonists || []),
+          ...(state.characters.antagonists || []),
+          ...(state.characters.supporting || []),
+        ];
+
+      setTimeout(() => {
+            currentCharacters.forEach((ch) => {
+                const id = Number(ch.id ?? ch.char_id);
+                if (!Number.isNaN(id)) {
+                   refreshCharImageUI(id, false);
+                }
+            });
+        }, 0);
+
+        show("#loader-3", false);
+        show("#chars-container", true);
+        setStepStatus("step-3", "Loaded");
     }
 
     showStep4Container();
@@ -426,9 +432,9 @@ async function loadStateOnStart() {
 
       beatTexts = normalizeBeatTextsKeys(state.beat_texts || {});
       beatAudio = {};
-      await refreshAudioStatusForChapter(currentChapter);
 
       renderWriteBeats(currentBeats, beatTexts);
+      await refreshAudioStatusForChapter(currentChapter);
 
       setStep5Enabled(true);
       setStepStatus("step-5", "Ready");
@@ -471,7 +477,6 @@ async function refreshAudioStatusForChapter(chapterNum) {
   if (!currentBeats?.length) return;
   await ensureProject();
 
-  // Ensure defaults exist for every beat/provider
   currentBeats.forEach((_, idx) => {
     TTS_PROVIDERS.forEach((p) => getBeatAudio(idx, p.key));
   });
@@ -479,7 +484,6 @@ async function refreshAudioStatusForChapter(chapterNum) {
   const res = await fetchJSON(api(`/audio/status?chapter=${chapterNum}`));
   const items = res?.items || [];
 
-  // If any item transitions missing->exists, we must re-render to create <audio> nodes
   let needRerender = false;
 
   items.forEach((it) => {
@@ -525,7 +529,6 @@ function stopAudioPoll() {
 }
 
 function startAudioPoll(chapterNum) {
-  // already polling this chapter
   if (_audioPollTimer && _audioPollChapter === chapterNum) return;
 
   stopAudioPoll();
@@ -536,8 +539,6 @@ function startAudioPoll(chapterNum) {
     _audioPollInFlight = true;
     try {
       await refreshAudioStatusForChapter(chapterNum);
-
-      // stop when nothing is generating
       const stillGenerating = Object.values(beatAudio).some((perBeat) =>
         Object.values(perBeat || {}).some((st) => st?.status === "generating")
       );
@@ -714,7 +715,6 @@ function startCoverPoll() {
     try {
       await refreshCoverUI(false);
     } catch (e) {
-      // do NOT stop polling on transient errors
       console.warn("cover poll tick failed", e);
     } finally {
       coverPollInFlight = false;
@@ -726,7 +726,6 @@ async function refreshCoverUI(startPollingIfRunning = false) {
   const box = $("#cover-box");
   if (!box) return;
 
-  // show only on Step 2 context (we at least have selected or plot)
   if (!currentPlotData && !selectedData) {
     box.style.display = "none";
     return;
@@ -786,7 +785,6 @@ async function refreshCoverUI(startPollingIfRunning = false) {
       return;
     }
 
-    // IDLE / unknown -> decide by presence of result
     const result = await fetchCoverResult();
     const hasImage = !!result?.saved_path || !!result?.image_url;
 
@@ -808,6 +806,157 @@ async function refreshCoverUI(startPollingIfRunning = false) {
     stopCoverPoll();
     setCoverStatusText("Cover unavailable");
     console.warn("cover ui refresh failed", e);
+  }
+}
+
+function charJobKey(charId) {
+  return `img:char:${Number(charId)}:job`;
+}
+
+async function fetchCharJob(charId) {
+  await ensureProject();
+  return await fetchJSON(api(`characters/${Number(charId)}/image/status`));
+}
+
+function charImageUrl(charId) {
+  return api(`characters/${Number(charId)}/image?t=${Date.now()}`);
+}
+
+async function startCharImageGeneration(charId, force = false) {
+  await ensureProject();
+  await fetchJSON(api(`characters/${Number(charId)}/generate_image`), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ force: !!force }),
+  });
+}
+
+function wireCharacterImageDelegation() {
+  const container = $("#chars-container");
+  if (!container) return;
+
+  container.addEventListener("click", async (event) => {
+    const genBtn = event.target.closest("button[data-char-img-generate]");
+    const reBtn = event.target.closest("button[data-char-img-recreate]");
+    if (!genBtn && !reBtn) return;
+
+    const charId = Number((genBtn || reBtn).getAttribute(genBtn ? "data-char-img-generate" : "data-char-img-recreate"));
+    if (Number.isNaN(charId)) return;
+
+    try {
+      (genBtn || reBtn).disabled = true;
+      await startCharImageGeneration(charId, !!reBtn);
+      await refreshCharImageUI(charId, true);
+    } catch (e) {
+      console.error(e);
+      alert("Character image generation failed");
+    } finally {
+      (genBtn || reBtn).disabled = false;
+    }
+  });
+
+  const allBtn = $("#btn-char-recreate-all");
+  if (allBtn) {
+    allBtn.addEventListener("click", async () => {
+      if (!currentCharacters?.length) return;
+
+      allBtn.disabled = true;
+      try {
+        for (const ch of currentCharacters) {
+          const id = Number(ch.id ?? ch.char_id);
+          if (Number.isNaN(id)) continue;
+          await startCharImageGeneration(id, true);
+          refreshCharImageUI(id, true);
+        }
+      } catch (e) {
+        console.error(e);
+        alert("Recreate all failed");
+      } finally {
+        allBtn.disabled = false;
+      }
+    });
+  }
+}
+
+const charPollTimers = new Map();
+const charPollInFlight = new Set();
+
+function setCharStatus(charId, txt) {
+  const el = document.querySelector(`[data-char-img-status="${Number(charId)}"]`);
+  if (el) el.textContent = txt;
+}
+
+function setCharButtons(charId, { canGenerate, canRecreate, disabled }) {
+  const g = document.querySelector(`button[data-char-img-generate="${Number(charId)}"]`);
+  const r = document.querySelector(`button[data-char-img-recreate="${Number(charId)}"]`);
+  if (g) {
+    g.style.display = canGenerate ? "inline-block" : "none";
+    g.disabled = !!disabled;
+  }
+  if (r) {
+    r.style.display = canRecreate ? "inline-block" : "none";
+    r.disabled = !!disabled;
+  }
+}
+
+function showCharImage(charId, yes) {
+  const img = document.querySelector(`img[data-char-img="${Number(charId)}"]`);
+  if (!img) return;
+  img.style.display = yes ? "block" : "none";
+  if (yes) img.src = charImageUrl(charId);
+}
+
+function stopCharPoll(charId) {
+  const t = charPollTimers.get(charId);
+  if (t) clearInterval(t);
+  charPollTimers.delete(charId);
+  charPollInFlight.delete(charId);
+}
+
+async function refreshCharImageUI(charId, startPollingIfRunning = false) {
+  try {
+    const job = await fetchCharJob(charId);
+    const status = (job?.status || "IDLE").toUpperCase();
+
+    if (status === "RUNNING") {
+       setCharStatus(charId, "Generating...");
+       setCharButtons(charId, { canGenerate: true, canRecreate: true, disabled: true });
+       if (startPollingIfRunning && !charPollTimers.get(charId)) {
+           charPollTimers.set(
+              charId,
+              setInterval(async () => {
+                if (charPollInFlight.has(charId)) return;
+                charPollInFlight.add(charId);
+                try { await refreshCharImageUI(charId, false); }
+                finally { charPollInFlight.delete(charId); }
+              }, 2500)
+           );
+       }
+       return;
+    }
+
+    if (status === "ERROR") {
+      stopCharPoll(charId);
+      setCharStatus(charId, "Error");
+      setCharButtons(charId, { canGenerate: true, canRecreate: true, disabled: false });
+      return;
+    }
+
+    if (status === "DONE") {
+      stopCharPoll(charId);
+      setCharStatus(charId, "");
+      setCharButtons(charId, { canGenerate: false, canRecreate: true, disabled: false });
+      showCharImage(charId, true);
+      return;
+    }
+
+    stopCharPoll(charId);
+    setCharStatus(charId, "idle");
+    setCharButtons(charId, { canGenerate: true, canRecreate: false, disabled: false });
+    showCharImage(charId, false);
+
+  } catch (e) {
+    stopCharPoll(charId);
   }
 }
 
@@ -838,6 +987,11 @@ async function generateCharacters() {
     currentCharacters = [...(data.protagonists || []), ...(data.antagonists || []), ...(data.supporting || [])];
     renderCharacters(data);
 
+    currentCharacters.forEach((ch) => {
+      const id = Number(ch.id ?? ch.char_id);
+      if (!Number.isNaN(id)) refreshCharImageUI(id, true);
+    });
+
     setStepStatus("step-3", "Done");
     updatePlanButtonUI();
   } catch (e) {
@@ -852,24 +1006,61 @@ async function generateCharacters() {
 function renderCharacters(data) {
   show("#chars-container", true);
 
-  const createCard = (char) => `
-    <div class="card" style="cursor:default;">
-      <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
-        <h3 style="margin:0;">${char.name}</h3>
-        ${
-          char.id
-            ? `<button class="mini-danger" data-char-id="${char.id}">Delete</button>`
-            : `<button class="mini-danger" disabled title="No id yet (load from /api/state)">Delete</button>`
-        }
+  const createCard = (char) => {
+    const id = char.id ?? char.char_id;
+    const role = char.role || char.kind || "Character";
+    const bio = char.bio || char.description || char.summary || "";
+
+    return `
+      <div class="card" style="cursor:default">
+        <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start; margin-bottom: 8px;">
+          <h3 style="margin:0">${char.name}</h3>
+          ${
+            id
+              ? `<button class="mini-danger" data-char-id="${id}">Delete</button>`
+              : `<button class="mini-danger" disabled>Delete</button>`
+          }
+        </div>
+
+        <div class="tag" style="margin-bottom:8px;">${role}</div>
+        
+        <div class="desc">${bio}</div>
+
+        <div style="margin-top:auto; padding-top:10px; border-top:1px solid #e2e8f0;">
+          <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap;">
+            <div style="font-weight:700; color:#334155;">Image</div>
+            ${
+              id
+                ? `
+                  <button data-char-img-generate="${id}" style="background:#0ea5e9;">Generate</button>
+                  <button data-char-img-recreate="${id}" style="background:#0ea5e9; display:none;">Recreate</button>
+                `
+                : `<button disabled style="background:#94a3b8;">Generate</button>`
+            }
+          </div>
+
+          <div data-char-img-status="${id ?? ""}" style="margin-top:6px; color:#64748b; font-size:0.85rem; min-height: 1.2em;">
+            idle
+          </div>
+
+          <div class="card-img-wrapper" style="margin-top:10px;">
+             <img 
+               data-char-img="${id ?? ""}" 
+               alt="Character image"
+               onclick="openImageModal(this.src)"
+               style="display:none; width:100%; max-width:100%; height:auto; border-radius:10px; border:1px solid #0f172a;" 
+             />
+          </div>
+        </div>
       </div>
-      <div class="tag">${char.role}</div>
-      <div class="desc">${char.bio}</div>
-    </div>
-  `;
+    `;
+  };
 
   $("#protagonists-grid").innerHTML = (data.protagonists || []).map(createCard).join("");
   $("#antagonists-grid").innerHTML = (data.antagonists || []).map(createCard).join("");
   $("#supporting-grid").innerHTML = (data.supporting || []).map(createCard).join("");
+
+  show("#char-img-box", true);
 }
 
 function wireCharacterDeleteDelegation() {
@@ -941,7 +1132,6 @@ async function planCurrentChapter() {
 
     currentBeats = data.beats || [];
 
-    // wipe prose for this chapter after planning
     try {
       await fetchJSON(api("/beat/clear_from"), {
         method: "POST",
@@ -1027,7 +1217,6 @@ function renderWriteBeats(beats, textsByIdx) {
             const isActive = active === p.key;
             const hasAudio = !!(st.exists && st.url);
 
-            // If we have audio: show audio controls, and show Regenerate only for active provider.
             if (hasAudio) {
               return `
                 <div class="tts-row" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
@@ -1049,7 +1238,6 @@ function renderWriteBeats(beats, textsByIdx) {
               `;
             }
 
-            // If missing/error/generating: show Generate button (disabled if not active) and a status label.
             const disabledAttr = isActive ? "" : "disabled";
             const statusText = st.status || "missing";
 
@@ -1329,3 +1517,25 @@ function setStep5ChapterHeader() {
   if (!el) return;
   el.innerText = ch ? `Ch ${currentChapter}: ${ch.title}` : `Ch ${currentChapter}`;
 }
+
+/* ========= Modal Helpers ========= */
+function openImageModal(src) {
+  const modal = document.getElementById("image-modal");
+  const modalImg = document.getElementById("modal-img-content");
+  if (modal && modalImg) {
+    modal.style.display = "flex";
+    modalImg.src = src;
+  }
+}
+
+function closeImageModal() {
+  const modal = document.getElementById("image-modal");
+  if (modal) {
+    modal.style.display = "none";
+  }
+}
+document.addEventListener('keydown', function(event) {
+  if (event.key === "Escape") {
+    closeImageModal();
+  }
+});

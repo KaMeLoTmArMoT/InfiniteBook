@@ -101,6 +101,19 @@
 
       <div class="step-body">
         <h2>Characters</h2>
+        <div
+          id="char-img-box"
+          style="display:none; margin-top:12px; padding:12px; border:1px solid #e2e8f0; border-radius:10px;"
+        >
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+            <div style="font-weight:700;">Character images</div>
+            <button id="btn-char-recreate-all" style="background:#0ea5e9;">Recreate all</button>
+          </div>
+
+          <div id="char-img-status" style="margin-top:8px; color:#64748b; font-size:0.9rem;">
+            idle
+          </div>
+        </div>
         <div class="loader" id="loader-3">Casting roles...</div>
 
         <div id="chars-container" style="display:none;">
@@ -243,6 +256,11 @@
         <div id="ram-bar" class="progress-fill"></div>
       </div>
     </div>
+  </div>
+
+  <div id="image-modal" onclick="closeImageModal()">
+    <span class="close">&times;</span>
+    <img id="modal-img-content" src="" alt="Full Screen">
   </div>
 
   <script src="/static/utils.js"></script>
