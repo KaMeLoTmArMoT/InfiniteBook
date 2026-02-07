@@ -242,3 +242,19 @@ class CharactersAnchorsRequest(BaseModel):
     genre: str
     setting: str = ""
     characters: list[CharacterIn]
+
+
+class ChapterSceneItem(BaseModel):
+    beat_index: int = Field(..., description="The 0-based index of the beat")
+    visual_description: str = Field(
+        ..., description="Visual prompt for Stable Diffusion"
+    )
+    composition: str = Field(..., description="Camera angle (e.g. 'Wide shot')")
+    primary_character_id: int | None = Field(
+        None,
+        description="ID of the main character in this scene, or null if no specific character focus",
+    )
+
+
+class ChapterScenesPlan(BaseModel):
+    scenes: list[ChapterSceneItem]

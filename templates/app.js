@@ -266,6 +266,21 @@ document.addEventListener("DOMContentLoaded", () => {
     try { await startCoverGeneration(); } catch (e) { console.error(e); alert("Cover regeneration failed"); }
   });
 
+  on("#btn-generate-scenes", "click", async () => {
+    const btn = $("#btn-generate-scenes");
+    if (btn) btn.disabled = true;
+
+    try {
+      await ensureProject();
+      await fetchJSON(api(`chapters/${currentChapter}/generate_scenes`), { method: "POST" });
+      alert("Illustrations generation started! They will appear in the beat list once ready.");
+    } catch (e) {
+      console.error(e);
+      alert("Failed to start illustrations");
+      if (btn) btn.disabled = false;
+    }
+  });
+
   if (typeof enableSingleOpenAccordion === 'function') enableSingleOpenAccordion();
   wireCharacterDeleteDelegation();
   wireWriteBeatDelegation();
@@ -321,18 +336,26 @@ function updatePlanButtonUI() {
   const btn = $("#step-4 #btn-plan-chapter");
   const hint = $("#step-4-plan-hint");
 
+  const sceneBtn = $("#btn-generate-scenes");
+  const hasPlan = hasBeatsPlanLoaded();
+
   if (btn) {
     btn.disabled = !canPlan;
-    btn.innerText = hasBeatsPlanLoaded() ? "Regenerate plan" : "Generate plan";
+    btn.innerText = hasPlan ? "Regenerate plan" : "Generate plan";
   }
+
   if (hint) {
-    hint.innerText = hasBeatsPlanLoaded()
+    hint.innerText = hasPlan
       ? `Plan loaded (Ch ${currentChapter}).`
       : `No plan (Ch ${currentChapter}). Click “Generate plan”.`;
   }
 
-  enableWriteIt(hasBeatsPlanLoaded());
-  setStepStatus("step-4", hasBeatsPlanLoaded() ? `Loaded (Ch ${currentChapter})` : `No plan (Ch ${currentChapter})`);
+  if (sceneBtn) {
+    sceneBtn.disabled = !hasPlan;
+  }
+
+  enableWriteIt(hasPlan);
+  setStepStatus("step-4", hasPlan ? `Loaded (Ch ${currentChapter})` : `No plan (Ch ${currentChapter})`);
 }
 
 function syncChapterUI() {

@@ -262,3 +262,26 @@ Setting/Tone: {setting}
 Characters ({n}):
 {characters_block}
 """.strip()
+
+PROMPT_SELECT_SCENES = """
+Analyze the following Chapter Beats for a story titled "{title}".
+Total beats count: {total_beats}.
+
+Characters (ID: Name - Description):
+{characters_visuals}
+
+Your task is to select exactly 3 key moments to visualize.
+**CRITICAL DISTRIBUTION RULE**: You MUST spread the scenes out. Do NOT select consecutive beats (e.g. 13 and 14).
+1. **Scene A (Start)**: Range [0 to {q1}]. Establishing shot or inciting incident.
+2. **Scene B (Middle)**: Range [{q1} to {q2}]. Key interaction or action midpoint.
+3. **Scene C (End)**: Range [{q2} to {total_beats}]. Climax or cliffhanger.
+
+For each scene:
+- `beat_index`: The 0-based index.
+- `visual_description`: Detailed prompt for Stable Diffusion (lighting, texture, pose, background).
+- `primary_character_id`: If a specific character is the focus, provide their ID. If it's a general landscape or group shot without focus, use null.
+- `composition`: Camera angle (Wide, Close-up, Low angle, etc).
+
+Beats:
+{beats_text}
+"""

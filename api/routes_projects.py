@@ -23,6 +23,7 @@ from utils.imggen.cover_service import (
     _kv_result_key,
 )
 from utils.imggen.job_utils import _attach_task_logger
+from utils.imggen.scene_service import service_run_scene_generation_pipeline
 from utils.prompts import *
 from utils.pydantic_models import *
 from utils.utils import *
@@ -346,7 +347,7 @@ async def build_chapter_continuity(
     return payload
 
 
-# --- CHARACTER ANCHORS ---
+# --- CHARACTER ANCHORS AND IMGAGES CREATIONS ---
 
 
 @router.post("/projects/{project_id}/characters/anchors")
@@ -399,3 +400,22 @@ async def set_style_image(
     return await service_upload_style_image(
         store=request.app.state.store, img_mgr=img_mgr, project_id=project_id, file=file
     )
+
+
+# --- SCENE VISUALIZATIONS ---
+
+
+@router.post("/projects/{project_id}/chapters/{chapter_num}/generate_scenes")
+async def generate_chapter_scenes(request: Request, project_id: str, chapter_num: int):
+    await require_project(request.app.state.store, project_id)
+
+    asyncio.create_task(
+        service_run_scene_generation_pipeline(
+            request=request,
+            project_id=project_id,
+            chapter_num=chapter_num,
+            img_mgr=IMG_MGR,
+        )
+    )
+
+    return {"ok": True, "message": "Scene generation started"}
