@@ -48,9 +48,13 @@ const setDisabled = (sel, disabled, root = document) => {
 const setDisabledMany = (sels, disabled, root = document) => sels.forEach((s) => setDisabled(s, disabled, root));
 
 function highlightDialogueToHtml(txt) {
-  if (typeof window.highlightDialogueToHtml === 'function') return window.highlightDialogueToHtml(txt);
   if (!txt) return "";
-  const escaped = txt.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  const escaped = txt
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
   return escaped.replace(/(".*?")/g, '<span style="color:#a5b4fc;">$1</span>');
 }
 
