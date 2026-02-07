@@ -157,6 +157,30 @@ let currentChapter = 1;
 let currentBeats = null;
 let beatTexts = {};
 
+let currentSceneData = {}; // { beatIndex: { status, image_url, ... } }
+let scenePollTimer = null;
+
+async function refreshSceneStatusForChapter(chapterNum) {
+  try {
+    const res = await fetchJSON(api(`chapters/${chapterNum}/scenes/status`));
+    currentSceneData = res.items || {};
+
+    renderWriteBeats(currentBeats, beatTexts);
+
+    const isRunning = Object.values(currentSceneData).some(x => x.status === "RUNNING");
+
+    if (isRunning && !scenePollTimer) {
+      scenePollTimer = setInterval(() => refreshSceneStatusForChapter(chapterNum), 3000);
+    } else if (!isRunning && scenePollTimer) {
+      clearInterval(scenePollTimer);
+      scenePollTimer = null;
+    }
+
+  } catch (e) {
+    console.warn("Failed to fetch scene status", e);
+  }
+}
+
 /* ========= AUDIO UI v2 (multi TTS) ========= */
 
 const TTS_PROVIDERS = [
@@ -384,6 +408,8 @@ async function loadChapterState(chapterNum, { open = false } = {}) {
 
     renderWriteBeats(currentBeats, beatTexts);
 
+    currentSceneData = {};
+    await refreshSceneStatusForChapter(chapterNum);
     await refreshAudioStatusForChapter(chapterNum);
 
     setStep5Enabled(true);
@@ -461,6 +487,8 @@ async function loadStateOnStart() {
       beatAudio = {};
 
       renderWriteBeats(currentBeats, beatTexts);
+      currentSceneData = {};
+      await refreshSceneStatusForChapter(currentChapter);
       await refreshAudioStatusForChapter(currentChapter);
 
       setStep5Enabled(true);
@@ -1229,6 +1257,37 @@ function renderWriteBeats(beats, textsByIdx) {
     const isWritten = txt.trim().length > 0;
     const safeText = highlightDialogueToHtml(txt);
 
+    // --- SCENE IMAGE LOGIC (НОВА ЧАСТИНА) ---
+    const scene = (typeof currentSceneData !== 'undefined') ? currentSceneData[idx] : null;
+    let imageHtml = "";
+
+    if (scene) {
+      if (scene.status === "DONE" && scene.image_url) {
+        const uniqueUrl = scene.image_url + (scene.image_url.includes('?') ? '&' : '?') + "t=" + Date.now();
+
+        imageHtml = `
+          <div class="scene-image-container" style="margin: 12px 0;">
+            <img src="${uniqueUrl}" 
+                 onclick="openImageModal(this.src)"
+                 style="width:100%; max-width:600px; border-radius:8px; border:1px solid #334155; cursor:zoom-in; display:block;" 
+                 alt="Scene illustration" 
+                 title="${scene.prompt || ''}">
+          </div>
+        `;
+      } else if (scene.status === "RUNNING") {
+        imageHtml = `
+          <div style="margin: 12px 0; padding:12px; background:#1e293b; border-radius:8px; color:#94a3b8; font-size:0.9rem; display:flex; align-items:center; gap:10px;">
+            <div style="width:16px; height:16px; border:2px solid #94a3b8; border-top:2px solid transparent; border-radius:50%; animation:spin 1s linear infinite;"></div>
+            <span>Painting illustration...</span>
+          </div>
+          <style>@keyframes spin {0% {transform: rotate(0deg);} 100% {transform: rotate(360deg);}}</style>
+        `;
+      } else if (scene.status === "ERROR") {
+         imageHtml = `<div style="color:#ef4444; font-size:0.8rem; margin:8px 0;">Illustration failed.</div>`;
+      }
+    }
+
+    // --- AUDIO LOGIC (СТАРА ЧАСТИНА) ---
     const active = getActiveTtsProvider();
     const anyAudioExists = TTS_PROVIDERS.some((p) => {
       const st = getBeatAudio(idx, p.key);
@@ -1290,6 +1349,7 @@ function renderWriteBeats(beats, textsByIdx) {
       `
       : "";
 
+    // --- HTML ---
     wrap.innerHTML += `
       <div class="beat-item" id="write-beat-row-${idx}">
         <div style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
@@ -1305,6 +1365,8 @@ function renderWriteBeats(beats, textsByIdx) {
         <div class="beat-desc" style="width:100%;">
           <div style="font-weight:700; margin-bottom:6px;">${beat.type}</div>
           <div style="margin-bottom:10px;">${beat.description}</div>
+          
+          ${imageHtml}
 
           <div style="margin-top:10px; border-top:1px solid #e2e8f0; padding-top:10px;">
             <div style="font-weight:700; color:#334155; margin-bottom:6px;">Generated text</div>

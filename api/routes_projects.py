@@ -7,7 +7,6 @@ from fastapi import APIRouter, File, Request, UploadFile
 from fastapi.responses import FileResponse
 
 from api.routes_imggen import mgr as IMG_MGR
-from utils.core_logger import log
 from utils.imggen.character_service import (
     generate_character_image_task,
     service_generate_anchors,
@@ -23,7 +22,11 @@ from utils.imggen.cover_service import (
     _kv_result_key,
 )
 from utils.imggen.job_utils import _attach_task_logger
-from utils.imggen.scene_service import service_run_scene_generation_pipeline
+from utils.imggen.scene_service import (
+    _kv_scene_job_key,
+    _kv_scene_result_key,
+    service_run_scene_generation_pipeline,
+)
 from utils.prompts import *
 from utils.pydantic_models import *
 from utils.utils import *
@@ -419,3 +422,64 @@ async def generate_chapter_scenes(request: Request, project_id: str, chapter_num
     )
 
     return {"ok": True, "message": "Scene generation started"}
+
+
+@router.get("/projects/{project_id}/chapters/{chapter_num}/scenes/status")
+async def get_chapter_scenes_status(
+    request: Request, project_id: str, chapter_num: int
+):
+    """Returns statuses of all generated scenes for the chapter."""
+    ps = await require_project(request.app.state.store, project_id)
+
+    state = await ps.a_load_state(chapter=chapter_num)
+    beats = state.get("beats", {}).get("beats", [])
+
+    results = {}
+    for i, _ in enumerate(beats):
+        job = await ps.a_kv_get(_kv_scene_job_key(chapter_num, i))
+        res = await ps.a_kv_get(_kv_scene_result_key(chapter_num, i))
+
+        status = (job or {}).get("status", "IDLE")
+
+        saved_path = res.get("saved_path") if res else None
+        file_exists = False
+        if saved_path:
+            file_exists = Path(saved_path).exists()
+
+        if status == "IDLE" and res:
+            status = "DONE"
+
+        if status == "DONE" and not file_exists:
+            status = "IDLE"
+
+        if status != "IDLE" or file_exists:
+            results[i] = {
+                "status": status,
+                "has_image": file_exists,
+                "prompt": (res or {}).get("visual_prompt"),
+                "image_url": (
+                    f"/api/projects/{project_id}/chapters/{chapter_num}/scenes/{i}/image"
+                    if file_exists
+                    else None
+                ),
+            }
+
+    return {"items": results}
+
+
+@router.get("/projects/{project_id}/chapters/{chapter_num}/scenes/{beat_index}/image")
+async def get_scene_image(
+    request: Request, project_id: str, chapter_num: int, beat_index: int
+):
+    ps = await require_project(request.app.state.store, project_id)
+    res = await ps.a_kv_get(_kv_scene_result_key(chapter_num, beat_index)) or {}
+    saved_path = res.get("saved_path")
+
+    if not saved_path:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    p = Path(saved_path)
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="Image file missing")
+
+    return FileResponse(str(p), media_type="image/png")
