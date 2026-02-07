@@ -91,14 +91,19 @@ class CharactersResponse(BaseModel):
 
 
 class Beat(BaseModel):
-    type: BeatType
+    # type: BeatType
+    type: str = Field(
+        ...,
+        description="Type of the beat (Dialogue, Action, Description, Internal Monologue, etc.)",
+    )
     description: str
 
 
 class ChapterPlanResponse(BaseModel):
-    beats: List[Beat] = Field(
-        ..., min_length=CFG.BEATS_MIN - 1, max_length=CFG.BEATS_MAX + 3
-    )
+    # beats: List[Beat] = Field(
+    #     ..., min_length=CFG.BEATS_MIN - 1, max_length=CFG.BEATS_MAX + 3
+    # )
+    beats: list[Beat]
 
 
 class CharacterPatch(BaseModel):

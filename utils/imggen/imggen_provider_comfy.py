@@ -145,10 +145,9 @@ class ComfyImgGenProvider:
     async def run_scene_dual_ref_gguf(
         self, params: SceneFromStyleAndCharParams
     ) -> dict:
-        # Переконайся, що файл flux2_klein_scene_dual_ref_gguf.json існує в папці templates!
         tpl = self._tpl("flux2_klein_scene_dual_ref_gguf")
 
-        # Генеруємо сід, якщо 0
+        # gen seed if 0
         params = SceneFromStyleAndCharParams(
             **{**params.__dict__, "seed": params.seed or random.randint(1, 2**31 - 1)}
         )
