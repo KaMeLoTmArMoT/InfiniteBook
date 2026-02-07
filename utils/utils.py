@@ -13,6 +13,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 
 from utils.config import CFG
+from utils.core_logger import log
 
 
 # --- JSON HELPERS (fallback) ---
@@ -254,6 +255,7 @@ async def call_llm_json(
     max_retries: int = CFG.LLM_MAX_RETRIES,
     options_extra: dict | None = None,
 ) -> TModel:
+    log.debug(f"\n\n[LLM CALL] Prompt:\n{prompt}\n--- End Prompt ---\n")
     return await model.generate_json_validated(
         prompt,
         response_model,

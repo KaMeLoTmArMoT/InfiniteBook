@@ -6,6 +6,8 @@ from typing import Any
 
 import aiohttp
 
+from utils.core_logger import log
+
 
 @dataclass(frozen=True)
 class ComfyPromptResponse:
@@ -45,6 +47,7 @@ class ComfyClient:
         self, prompt_graph: dict[str, Any], client_id: str | None = None
     ) -> ComfyPromptResponse:
         payload: dict[str, Any] = {"prompt": prompt_graph}
+        log.debug(f"\n\n[COMFY CALL] Payload:\n{payload}\n--- End Prompt ---\n")
         if client_id:
             payload["client_id"] = client_id
         async with self._s().post(f"{self.base}/prompt", json=payload) as r:

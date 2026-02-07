@@ -13,12 +13,14 @@ from utils.imggen.pipelines import (
     Flux2KleinT2IDistilledParams,
     Flux2KleinT2IParams,
     build_flux2_klein_character_style_ref_gguf,
+    build_flux2_klein_scene_dual_ref_gguf,
     build_flux2_klein_t2i,
     build_flux2_klein_t2i_distilled,
     build_flux2_klein_t2i_distilled_gguf,
     load_template,
 )
 from utils.prompts import DEFAULT_STYLE_PROMPT
+from utils.pydantic_models import SceneFromStyleAndCharParams
 
 
 class ComfyImgGenProvider:
@@ -128,6 +130,40 @@ class ComfyImgGenProvider:
 
         client_id = str(uuid.uuid4())
         resp = await self.client.prompt(graph, client_id=client_id)
+        item = await self.client.wait_done(
+            resp.prompt_id,
+            poll_ms=self.cfg.COMFY_OUTPUT_POLL_MS,
+            timeout_s=self.cfg.COMFY_API_TIMEOUT_S,
+        )
+        return {
+            "prompt_id": resp.prompt_id,
+            "queue_number": resp.number,
+            "history_item": item,
+            "seed": params.seed,
+        }
+
+    async def run_scene_dual_ref_gguf(
+        self, params: SceneFromStyleAndCharParams
+    ) -> dict:
+        # Переконайся, що файл flux2_klein_scene_dual_ref_gguf.json існує в папці templates!
+        tpl = self._tpl("flux2_klein_scene_dual_ref_gguf")
+
+        # Генеруємо сід, якщо 0
+        params = SceneFromStyleAndCharParams(
+            **{**params.__dict__, "seed": params.seed or random.randint(1, 2**31 - 1)}
+        )
+
+        graph = build_flux2_klein_scene_dual_ref_gguf(tpl, params)
+
+        client_id = str(uuid.uuid4())
+        resp = await self.client.prompt(graph, client_id=client_id)
+
+        log.info(
+            "Comfy submit scene_dual_ref prompt_id=%s queue=%s",
+            resp.prompt_id,
+            resp.number,
+        )
+
         item = await self.client.wait_done(
             resp.prompt_id,
             poll_ms=self.cfg.COMFY_OUTPUT_POLL_MS,

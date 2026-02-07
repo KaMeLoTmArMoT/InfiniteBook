@@ -219,6 +219,21 @@ class CharacterFromStyleParams:
     filename_prefix: str = "HERO-BASE"
 
 
+@dataclass(frozen=True)
+class SceneFromStyleAndCharParams:
+    style_anchor: str = ""
+    scene_block: str = ""
+    character_anchor: str = ""
+    style_image: str = ""  # filename in Comfy input/
+    char_image: str = ""  # filename in Comfy input/ (NEW)
+    width: int = 1152  # Landscape default for scenes
+    height: int = 768
+    steps: int = 4
+    cfg: float = 1.0
+    seed: int = 0
+    filename_prefix: str = "SCENE-DUAL-REF"
+
+
 class CharacterAnchorItem(BaseModel):
     char_id: int | None = None
     name: str
