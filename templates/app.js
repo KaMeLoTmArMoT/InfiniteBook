@@ -49,13 +49,12 @@ const setDisabledMany = (sels, disabled, root = document) => sels.forEach((s) =>
 
 function highlightDialogueToHtml(txt) {
   if (!txt) return "";
-
   const escaped = txt
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-  return escaped.replace(/(".*?")/g, '<span style="color:#a5b4fc;">$1</span>');
+  return escaped.replace(/([“"«].*?[”"»])/g, '<span style="color:#a5fcb8;">$1</span>');
 }
 
 const DEFAULT_SENTINEL = "__IBA_DEFAULT__";
@@ -390,10 +389,11 @@ function syncChapterUI() {
 }
 
 /* ========= Persistence ========= */
+
 async function loadChapterState(chapterNum, { open = false } = {}) {
   await ensureProject();
 
-  const state = await fetchJSON(`${api(`/state?chapter=${chapterNum}`)}`);
+  const state = await fetchJSON(api(`state?chapter=${chapterNum}`));
 
   showStep4Container();
   setChapterTitleDisplay();
@@ -404,37 +404,36 @@ async function loadChapterState(chapterNum, { open = false } = {}) {
     renderBeats(currentBeats);
 
     beatTexts = normalizeBeatTextsKeys(state.beat_texts || {});
+    window.beatFormatted = normalizeBeatTextsKeys(state.beat_formatted || {});
     beatAudio = {};
-
-    renderWriteBeats(currentBeats, beatTexts);
-
     currentSceneData = {};
+
     await refreshSceneStatusForChapter(chapterNum);
+    renderWriteBeats(currentBeats, beatTexts);
     await refreshAudioStatusForChapter(chapterNum);
 
     setStep5Enabled(true);
     updatePlanButtonUI();
 
     if (open) openStep("step-5", { scroll: false });
-    return;
+  } else {
+    currentBeats = null;
+    beatTexts = {};
+    if ($("#beats-list")) $("#beats-list").innerHTML = "";
+    if ($("#write-beats-list")) $("#write-beats-list").innerHTML = "";
+
+    setStep5Enabled(false);
+    updatePlanButtonUI();
+
+    if (open) openStep("step-4", { scroll: false });
   }
-
-  currentBeats = null;
-  beatTexts = {};
-  if ($("#beats-list")) $("#beats-list").innerHTML = "";
-  if ($("#write-beats-list")) $("#write-beats-list").innerHTML = "";
-
-  setStep5Enabled(false);
-  updatePlanButtonUI();
-
-  if (open) openStep("step-4", { scroll: false });
 }
 
 async function loadStateOnStart() {
   try {
     await ensureProject();
 
-    const state = await fetchJSON(`${api(`/state?chapter=${currentChapter}`)}`);
+    const state = await fetchJSON(api(`state?chapter=${currentChapter}`));
     if (typeof state.chapter === "number") currentChapter = state.chapter;
 
     setStep5ChapterHeader();
@@ -484,11 +483,12 @@ async function loadStateOnStart() {
       renderBeats(currentBeats);
 
       beatTexts = normalizeBeatTextsKeys(state.beat_texts || {});
+      window.beatFormatted = normalizeBeatTextsKeys(state.beat_formatted || {});
       beatAudio = {};
-
-      renderWriteBeats(currentBeats, beatTexts);
       currentSceneData = {};
+
       await refreshSceneStatusForChapter(currentChapter);
+      renderWriteBeats(currentBeats, beatTexts);
       await refreshAudioStatusForChapter(currentChapter);
 
       setStep5Enabled(true);
@@ -504,6 +504,7 @@ async function loadStateOnStart() {
     else if (state.characters && (currentCharacters?.length || 0) > 0) openStep("step-3");
     else if (state.plot) openStep("step-2");
     else openStep("step-1");
+
   } catch (e) {
     console.warn("Failed to load state:", e);
     showStep4Container();
@@ -512,10 +513,12 @@ async function loadStateOnStart() {
 }
 
 function normalizeBeatTextsKeys(obj) {
+  if (!obj) return {};
   const out = {};
-  for (const [k, v] of Object.entries(obj || {})) {
-    const idx = Number(k);
-    if (!Number.isNaN(idx) && typeof v === "string") out[idx] = v;
+  for (const k in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, k)) {
+        out[parseInt(k, 10)] = obj[k];
+    }
   }
   return out;
 }
@@ -1252,12 +1255,23 @@ function renderWriteBeats(beats, textsByIdx) {
   if (!wrap) return;
 
   wrap.innerHTML = "";
+
+  if (!beats || !beats.length) return;
+
   beats.forEach((beat, idx) => {
     const txt = textsByIdx?.[idx] || "";
     const isWritten = txt.trim().length > 0;
-    const safeText = highlightDialogueToHtml(txt);
 
-    // --- SCENE IMAGE LOGIC (НОВА ЧАСТИНА) ---
+    let safeText = "";
+
+    if (window.beatFormatted && window.beatFormatted[idx]) {
+      console.log("Using preformatted text for beat", idx);
+      safeText = window.beatFormatted[idx];
+    } else {
+      console.log("Highlighting text for beat", idx);
+      safeText = highlightDialogueToHtml(txt);
+    }
+
     const scene = (typeof currentSceneData !== 'undefined') ? currentSceneData[idx] : null;
     let imageHtml = "";
 
@@ -1287,7 +1301,7 @@ function renderWriteBeats(beats, textsByIdx) {
       }
     }
 
-    // --- AUDIO LOGIC (СТАРА ЧАСТИНА) ---
+    // --- AUDIO LOGIC ---
     const active = getActiveTtsProvider();
     const anyAudioExists = TTS_PROVIDERS.some((p) => {
       const st = getBeatAudio(idx, p.key);
@@ -1349,7 +1363,7 @@ function renderWriteBeats(beats, textsByIdx) {
       `
       : "";
 
-    // --- HTML ---
+    // --- HTML ASSEMBLY ---
     wrap.innerHTML += `
       <div class="beat-item" id="write-beat-row-${idx}">
         <div style="display:flex; flex-direction:column; gap:6px; min-width:180px;">

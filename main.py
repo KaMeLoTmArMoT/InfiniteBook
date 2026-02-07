@@ -1,5 +1,6 @@
 # main.py
 import asyncio
+import html
 import os
 from contextlib import asynccontextmanager
 
@@ -20,6 +21,7 @@ from utils.pydantic_models import (
     ClearBeatRequest,
     ClearFromBeatRequest,
 )
+from utils.tts.tts_common import split_dialog_spans
 from utils.tts.tts_manager import TtsManager
 from utils.utils import (
     check_ollama_status,
@@ -90,7 +92,33 @@ async def projects_page(request: Request):
 @app.get("/api/projects/{project_id}/state")
 async def api_state(request: Request, project_id: str, chapter: int = 1):
     ps = await require_project(request.app.state.store, project_id)
-    return await ps.a_load_state(chapter=chapter)
+    state = await ps.a_load_state(chapter=chapter)
+
+    lang = await request.app.state.store.a_get_project_language(project_id)
+    raw_texts = state.get("beat_texts", {})
+    formatted_texts = {}
+
+    for idx, text in raw_texts.items():
+        if not text:
+            continue
+
+        spans = split_dialog_spans(text, lang, normalize=False)
+        html_parts = []
+
+        for span in spans:
+            safe = html.escape(span.text)
+            if span.kind == "dialog":
+                html_parts.append(f'<span style="color:#a5b4fc;">{safe}</span>')
+            elif span.kind == "pause":
+                html_parts.append("\n\n")
+            else:
+                html_parts.append(safe)
+
+        formatted_texts[idx] = "".join(html_parts)
+
+    state["beat_formatted"] = formatted_texts
+
+    return state
 
 
 @app.get("/reader", response_class=HTMLResponse, include_in_schema=False)
