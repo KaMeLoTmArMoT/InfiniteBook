@@ -59,6 +59,9 @@ It supports multiple LLM providers behind a small gateway (local Ollama by defau
    ```bash
    python -m venv .venv
    .venv\Scripts\activate  # Windows
+   # First Torch with CUDA (for Nvidia GPU)
+   pip install torch==2.9.1 torchaudio==2.9.1 torchvision==0.24.1 --index-url https://download.pytorch.org/whl/cu130
+
    pip install -r requirements.txt
    ```
 
