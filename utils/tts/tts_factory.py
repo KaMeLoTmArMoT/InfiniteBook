@@ -67,6 +67,6 @@ def build_f5(cfg) -> F5TtsProvider:
         ref_audio_en=cfg.F5_REF_AUDIO_EN,
         ref_text_en=cfg.F5_REF_TEXT_EN,
         device=cfg.DEVICE,
-        speed=0.85,
+        speed=0.8,
         nfe_step=64,
     )

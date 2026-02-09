@@ -147,14 +147,38 @@ class TextNormalizer:
         text = text.replace("...", ", ").replace("..", ", ").replace("…", ", ")
         text = self._expand_numbers(text)
 
+        # Cleanup whitespace
         text = re.sub(r"\s+", " ", text)
+        # Fix spaces before punctuation
         text = re.sub(r"\s+([.,!?;:])", r"\1", text)
+        # Fix double commas
         text = re.sub(r",\s*,", ",", text)
 
         return text.strip()
 
 
 _default_normalizer = TextNormalizer(lang="en", use_translit=False)
+
+
+def _is_meaningful(text: str) -> bool:
+    """
+    Returns True if text contains at least one alphanumeric character.
+    Used to filter out spans that are just punctuation (e.g. "." or "-").
+    """
+    # Remove common punctuation and whitespace
+    # Keep only letters and numbers
+    cleaned = re.sub(r"[^\w]", "", text)
+    return len(cleaned) > 0
+
+
+def _clean_leading_punctuation(text: str) -> str:
+    """
+    Removes leading punctuation often found in narrative text after dialogue.
+    E.g. "– said he" -> "said he", ". And then" -> "And then".
+    """
+    # Matches start of string, followed by one or more punctuation marks or spaces
+    # Includes: . , ! ? ; : - — –
+    return re.sub(r"^[\s.,!?;:\-—–]+", "", text).strip()
 
 
 def split_dialog_spans(
@@ -203,21 +227,29 @@ def split_dialog_spans(
         if is_dialog:
             content = part
             if normalize:
-                content = part[1:-1]
+                content = part[1:-1]  # Remove quotes
                 content = _default_normalizer.normalize(content, project_lang_code)
 
-            if content.strip():
-                spans.append(Span("dialog", content))
+            # Dialog usually doesn't have leading punctuation artifacts,
+            # but we still check if it's meaningful.
+            if content.strip() and (not normalize or _is_meaningful(content)):
+                spans.append(Span("dialog", content.strip()))
         else:
+            # Narrative
             sub_parts = part.split("\n\n")
             for sub_idx, sub_p in enumerate(sub_parts):
                 clean_p = sub_p
                 if normalize:
                     clean_p = _default_normalizer.normalize(sub_p, project_lang_code)
+                    # Key fix: Remove leading dashes/dots/commas from narrative chunks
+                    clean_p = _clean_leading_punctuation(clean_p)
 
                 if clean_p.strip():
-                    spans.append(Span("narr", clean_p))
+                    # Filter out spans that became empty or are just symbols
+                    if not normalize or _is_meaningful(clean_p):
+                        spans.append(Span("narr", clean_p))
 
+                # Add pause if it's not the last paragraph block
                 if sub_idx < len(sub_parts) - 1:
                     spans.append(Span("pause", "\n\n"))
 
