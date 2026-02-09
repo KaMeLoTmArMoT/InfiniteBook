@@ -2,6 +2,7 @@
 .venv
 .env
 experiments
+ruaccent_data
 
 
 *.sqlite*

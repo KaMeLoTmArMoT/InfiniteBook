@@ -1,3 +1,4 @@
+import torch
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -86,6 +87,22 @@ class AppConfig(BaseSettings):
     COMFY_TEMPLATES_DIR: str = "docs/t2i_templates"
     COMFY_OUTPUT_POLL_MS: int = 500
     COMFY_MAX_CONCURRENCY: int = 1
+
+    F5_CKPT_RU: str = (
+        "tts_models/F5-TTS/F5TTS_v1_Base_v4_winter/model_212000.safetensors"
+    )
+    F5_REF_AUDIO_RU: str = "docs/ref/maksim_suslov_00012.wav"
+    F5_REF_TEXT_RU: str = (
+        "Поэтому он будет стараться улучшить то, что он может улучшить, в частности, продлить ресурс самолета, то есть сделать его более долговечным."
+    )
+
+    F5_CKPT_EN: str = "tts_models/F5-TTS/F5TTS_Base_v1/model_1250000.safetensors"
+    F5_REF_AUDIO_EN: str = "docs/ref/LJ025-0076.wav"
+    F5_REF_TEXT_EN: str = (
+        "Many animals of even complex structure which live parasitically within others are wholly devoid of an alimentary cavity."
+    )
+
+    DEVICE: str = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 CFG = AppConfig()

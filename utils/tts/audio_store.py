@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import HTTPException
 
 # Providers exposed to UI/backend
-TTS_PROVIDERS: tuple[str, ...] = ("piper", "xtts", "qwen")
+TTS_PROVIDERS: tuple[str, ...] = ("piper", "xtts", "qwen", "f5")
 
 # Per provider job state
 # key = (project_id, chapter, beat_index, provider) -> "generating"|"done"|"error"

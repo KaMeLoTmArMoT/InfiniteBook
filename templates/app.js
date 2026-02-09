@@ -186,6 +186,7 @@ const TTS_PROVIDERS = [
   { key: "piper", label: "Piper" },
   { key: "xtts", label: "XTTS" },
   { key: "qwen", label: "Qwen" },
+  { key: "f5", label: "F5-TTS" },
 ];
 
 let beatAudio = {};
@@ -193,7 +194,9 @@ let beatAudio = {};
 function getActiveTtsProvider() {
   const el = $("#tts-providers");
   const raw = (el?.textContent || "").toLowerCase();
-  const known = ["piper", "xtts", "qwen"];
+
+  const known = TTS_PROVIDERS.map(p => p.key);
+
   for (const k of known) {
     if (raw.includes(k)) return k;
   }

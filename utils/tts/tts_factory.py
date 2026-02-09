@@ -1,3 +1,4 @@
+from utils.tts.tts_provider_f5 import F5TtsProvider
 from utils.tts.tts_provider_piper import PiperTtsProvider
 from utils.tts.tts_provider_qwen import QwenTtsProvider
 from utils.tts.tts_provider_xtts import XttsTtsProvider
@@ -54,4 +55,18 @@ def build_qwen(cfg) -> QwenTtsProvider:
         api_url=cfg.QWEN_TTS_URL,
         model_id=cfg.QWEN_MODEL_ID,
         dtype=getattr(cfg, "QWEN_DTYPE", "float16"),
+    )
+
+
+def build_f5(cfg) -> F5TtsProvider:
+    return F5TtsProvider(
+        ckpt_ru=cfg.F5_CKPT_RU,
+        ckpt_en=cfg.F5_CKPT_EN,
+        ref_audio_ru=cfg.F5_REF_AUDIO_RU,
+        ref_text_ru=cfg.F5_REF_TEXT_RU,
+        ref_audio_en=cfg.F5_REF_AUDIO_EN,
+        ref_text_en=cfg.F5_REF_TEXT_EN,
+        device=cfg.DEVICE,
+        speed=0.85,
+        nfe_step=64,
     )

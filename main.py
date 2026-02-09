@@ -1,7 +1,10 @@
 # main.py
+import os
+
+os.add_dll_directory(r"C:\Users\andrii\AppData\Local\ffmpeg\bin")
+
 import asyncio
 import html
-import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect

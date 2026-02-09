@@ -1,15 +1,21 @@
+# utils/tts/tts_manager.py
 import asyncio
 from dataclasses import dataclass
 
 from utils.core_logger import log
-from utils.tts.tts_factory import build_piper, build_qwen, build_xtts, canon_lang
-from utils.tts.tts_provider_qwen import QwenTtsProvider
+from utils.tts.tts_factory import (
+    build_f5,
+    build_piper,
+    build_qwen,
+    build_xtts,
+    canon_lang,
+)
 
 
 @dataclass
 class LoadedTts:
-    key: str  # "piper" | "xtts" | "qwen"
-    lang: str | None  # canon lang (for piper/xtts); None for qwen
+    key: str  # "piper" | "xtts" | "qwen" | "f5"
+    lang: str | None  # canon lang (for piper/xtts); None for qwen/f5
     provider: object
 
 
@@ -41,7 +47,8 @@ class TtsManager:
             if cur and cur.key == key:
                 if key in ("piper", "xtts") and cur.lang == lang:
                     return cur.provider
-                if key == "qwen":
+                if key in ("qwen", "f5"):
+                    # Qwen and F5 providers handle multilingual internally or don't need reload
                     return cur.provider
 
             await self._unload_current()
@@ -64,6 +71,12 @@ class TtsManager:
                 p = build_qwen(self.cfg)
                 await p.ainit()
                 self._loaded = LoadedTts(key="qwen", lang=None, provider=p)
+                return p
+
+            if key == "f5":
+                p = build_f5(self.cfg)
+                await p.ainit()
+                self._loaded = LoadedTts(key="f5", lang=None, provider=p)
                 return p
 
             raise ValueError(f"Unknown TTS provider: {key}")
