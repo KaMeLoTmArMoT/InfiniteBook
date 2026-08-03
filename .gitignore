@@ -1,10 +1,21 @@
-.idea
-.venv
+# Python / Bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environments & IDEs
+.venv/
+env/
+venv/
+.idea/
+.vscode/
+
+# Project-specific data & artifacts
 .env
-experiments
-ruaccent_data
-
-
+experiments/
+ruaccent_data/
+tts_models/
+app_debug.log
 *.sqlite*
 *.log
 *.txt
@@ -18,3 +29,8 @@ ruaccent_data
 *.png
 *.safetensors
 *.pt
+
+# Tools & Caches
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/

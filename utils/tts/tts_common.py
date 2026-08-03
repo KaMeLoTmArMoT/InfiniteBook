@@ -1,7 +1,7 @@
 # utils/tts/tts_common.py
 import re
 from dataclasses import dataclass
-from typing import List, Dict
+from typing import Dict, List
 
 from num2words import num2words
 

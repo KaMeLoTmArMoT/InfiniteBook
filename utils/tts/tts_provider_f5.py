@@ -13,7 +13,6 @@ from f5_tts.infer.utils_infer import infer_process, load_model, load_vocoder
 
 # F5-TTS
 from f5_tts.model import DiT
-from num2words import num2words
 
 # RUAccent (Required)
 from ruaccent import RUAccent

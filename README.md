@@ -36,6 +36,8 @@ It supports multiple LLM providers behind a small gateway (local Ollama by defau
 
 - Python + FastAPI
 - Vanilla JavaScript + HTML + CSS
+- Package & Environment Management: `uv`
+- Code Quality & Formatting: `ruff`
 - Ollama (local LLM runtime)
 - OpenRouter (cloud LLM gateway)
 
@@ -43,7 +45,8 @@ It supports multiple LLM providers behind a small gateway (local Ollama by defau
 
 ### Prerequisites
 
-- Python 3.11+ (recommended)
+- Python 3.13
+- `uv` installed (`pip install uv` or `winget install astral-sh.uv`)
 - Ollama installed and running (for local mode)
 - Optional: OpenRouter API key (for cloud mode)
 
@@ -51,26 +54,27 @@ It supports multiple LLM providers behind a small gateway (local Ollama by defau
 
 1. Clone the repo:
    ```bash
-   git clone https://github.com/<YOU>/<YOUR_REPO>.git
-   cd <YOUR_REPO>
+   git clone https://github.com/KaMeLoTmArMoT/InfiniteBook.git
+   cd InfiniteBook
    ```
 
-2. Create venv + install deps:
+2. Install dependencies with `uv`:
    ```bash
-   python -m venv .venv
-   .venv\Scripts\activate  # Windows
-   # First Torch with CUDA (for Nvidia GPU)
-   pip install torch==2.9.1 torchaudio==2.9.1 torchvision==0.24.1 --index-url https://download.pytorch.org/whl/cu130
-
-   pip install -r requirements.txt
+   uv sync
    ```
 
 3. Run:
    ```bash
-   python main.py
+   uv run python main.py
    ```
 
-4. Open:
+4. Code formatting & linting with `ruff`:
+   ```bash
+   uv run ruff check --fix
+   uv run ruff format
+   ```
+
+5. Open:
    - http://127.0.0.1:8000/
 
 ### Configuration (.env)

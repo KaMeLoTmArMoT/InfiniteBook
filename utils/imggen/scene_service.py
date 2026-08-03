@@ -14,7 +14,6 @@ from utils.imggen.character_service import (
 )
 from utils.imggen.job_utils import (
     _attach_task_logger,
-    _kv_style_image_key,
     _now_ts,
     _save_png_for_project,
 )
