@@ -47,11 +47,7 @@ async def api_audio_status(request: Request, project_id: str, chapter: int = 1):
                     "provider": provider,
                     "status": status,
                     "exists": p.exists(),
-                    "url": (
-                        wav_url(project_id, provider, chapter, idx)
-                        if p.exists()
-                        else ""
-                    ),
+                    "url": (wav_url(project_id, provider, chapter, idx) if p.exists() else ""),
                 }
             )
 
@@ -108,14 +104,10 @@ async def api_audio_generate(project_id: str, payload: dict, request: Request):
         try:
             out_path.parent.mkdir(parents=True, exist_ok=True)
 
-            tts_provider = await request.app.state.tts.ensure(
-                provider, project_lang_code
-            )
+            tts_provider = await request.app.state.tts.ensure(provider, project_lang_code)
 
             if isinstance(tts_provider, QwenTtsProvider):
-                await tts_provider.write_wav_for_text(
-                    text, str(out_path), project_lang_code
-                )
+                await tts_provider.write_wav_for_text(text, str(out_path), project_lang_code)
             else:
                 await asyncio.to_thread(
                     tts_provider.write_wav_for_text,

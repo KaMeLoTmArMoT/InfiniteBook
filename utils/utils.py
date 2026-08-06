@@ -1,5 +1,6 @@
 # tts/utils.py
 import asyncio
+import contextlib
 import hashlib
 import json
 import re
@@ -72,10 +73,8 @@ def get_gpu_status():
     except Exception as e:
         return {"error": str(e)}
     finally:
-        try:
+        with contextlib.suppress(BaseException):
             pynvml.nvmlShutdown()
-        except:
-            pass
 
 
 async def check_ollama_status():
@@ -92,9 +91,7 @@ def log_ollama_usage(log, tag: str, resp: dict) -> None:
     r = resp.get("eval_count", "- No data -")
     done_reason = resp.get("done_reason", "- No data -")
 
-    log.info(
-        f"[ollama] {tag} prompt_eval_count={p} eval_count={r} done_reason={done_reason}"
-    )
+    log.info(f"[ollama] {tag} prompt_eval_count={p} eval_count={r} done_reason={done_reason}")
 
 
 def get_ram_status():
@@ -113,15 +110,11 @@ def _fmt_prev_beats(beats: list[dict], beat_index: int, lookback: int = 4) -> st
     lines = []
     for i in range(start, beat_index):
         b = beats[i]
-        lines.append(
-            f"- Beat {i + 1} ({b.get('type', '')}): {b.get('description', '')}"
-        )
+        lines.append(f"- Beat {i + 1} ({b.get('type', '')}): {b.get('description', '')}")
     return "\n".join(lines) if lines else "- (none)"
 
 
-async def _build_write_context(
-    store, chapter: int, beat_index: int, beats: list[dict]
-) -> dict:
+async def _build_write_context(store, chapter: int, beat_index: int, beats: list[dict]) -> dict:
     prev_beats = _fmt_prev_beats(beats, beat_index, lookback=4)
 
     prev_text = ""
@@ -153,9 +146,7 @@ async def _build_write_context(
         capsule_txt = cap.strip()
 
     ending_full = await store.a_get_last_written_beat_text(prev_ch)
-    ending_tail = (
-        _tail_chars(ending_full, approx_tokens=400) if ending_full.strip() else ""
-    )
+    ending_tail = _tail_chars(ending_full, approx_tokens=400) if ending_full.strip() else ""
 
     return {
         "prev_text": "",  # same chapter has none

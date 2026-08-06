@@ -52,18 +52,12 @@ class PiperTtsProvider:
             if self.voice_narr is not None and self.voice_dialog is not None:
                 return
 
-            log.info(
-                "Piper init start narr=%s dialog=%s", self.narr_model, self.dialog_model
-            )
+            log.info("Piper init start narr=%s dialog=%s", self.narr_model, self.dialog_model)
 
             self.voice_narr = await asyncio.to_thread(PiperVoice.load, self.narr_model)
-            self.voice_dialog = await asyncio.to_thread(
-                PiperVoice.load, self.dialog_model
-            )
+            self.voice_dialog = await asyncio.to_thread(PiperVoice.load, self.dialog_model)
 
-            log.info(
-                "Piper init done narr=%s dialog=%s", self.narr_model, self.dialog_model
-            )
+            log.info("Piper init done narr=%s dialog=%s", self.narr_model, self.dialog_model)
 
     def unload(self) -> None:
         # PiperVoice doesn’t expose a formal unload; drop refs so GC can reclaim.
@@ -72,13 +66,9 @@ class PiperTtsProvider:
 
     def _ensure_loaded(self) -> None:
         if self.voice_narr is None or self.voice_dialog is None:
-            raise RuntimeError(
-                "Piper provider not initialized; call await ainit() first"
-            )
+            raise RuntimeError("Piper provider not initialized; call await ainit() first")
 
-    def write_wav_for_text(
-        self, text: str, out_path: str, project_lang_code: str
-    ) -> str:
+    def write_wav_for_text(self, text: str, out_path: str, project_lang_code: str) -> str:
         self._ensure_loaded()
 
         spans = split_dialog_spans(text, project_lang_code)

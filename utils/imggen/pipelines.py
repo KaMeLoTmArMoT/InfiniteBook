@@ -19,9 +19,7 @@ def load_template(templates_dir: str, name: str) -> dict[str, Any]:
     return json.loads(p.read_text(encoding="utf-8"))
 
 
-def build_flux2_klein_t2i(
-    template: dict[str, Any], p: Flux2KleinT2IParams
-) -> dict[str, Any]:
+def build_flux2_klein_t2i(template: dict[str, Any], p: Flux2KleinT2IParams) -> dict[str, Any]:
     g = json.loads(json.dumps(template))
 
     g["76"]["inputs"]["value"] = p.prompt

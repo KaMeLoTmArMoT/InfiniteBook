@@ -82,9 +82,7 @@ class OpenRouterModel:
     Authentication is Bearer token.
     """
 
-    def __init__(
-        self, *, api_base: str, api_key: str, model_name: str, timeout_sec: float = 60.0
-    ):
+    def __init__(self, *, api_base: str, api_key: str, model_name: str, timeout_sec: float = 60.0):
         self.api_base = api_base.rstrip("/")
         self.api_key = api_key
         self.model_name = model_name
@@ -98,9 +96,7 @@ class OpenRouterModel:
         # OpenRouter documents GET /api/v1/key to check limit/usage.
         url = f"{self.api_base}/api/v1/key"
         try:
-            r = await self._client.get(
-                url, headers={"Authorization": f"Bearer {self.api_key}"}
-            )
+            r = await self._client.get(url, headers={"Authorization": f"Bearer {self.api_key}"})
             r.raise_for_status()
             return r.json()
         except Exception as e:
@@ -164,9 +160,7 @@ class OpenRouterModel:
 
 
 class GoogleGenAIModel:
-    def __init__(
-        self, *, api_key: str, model_name: str, enable_structured: bool = False
-    ):
+    def __init__(self, *, api_key: str, model_name: str, enable_structured: bool = False):
         self.model_name = model_name
         self.enable_structured = enable_structured
         self.client = genai.Client(api_key=api_key)

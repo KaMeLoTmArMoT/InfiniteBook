@@ -137,9 +137,7 @@ async def delete_character(request: Request, project_id: str, char_id: int):
 
 
 @app.patch("/api/projects/{project_id}/characters/{char_id}")
-async def patch_character(
-    request: Request, project_id: str, char_id: int, patch: CharacterPatch
-):
+async def patch_character(request: Request, project_id: str, char_id: int, patch: CharacterPatch):
     ps = await require_project(request.app.state.store, project_id)
     updated = await ps.a_update_character(char_id, patch.model_dump(exclude_none=True))
     return {"ok": True, "character": updated}
@@ -177,9 +175,7 @@ async def websocket_endpoint(websocket: WebSocket):
     llm_providers = [CFG.LLM_PROVIDER]
     tts_providers = [CFG.TTS_PROVIDER]
 
-    log.info(
-        f"Monitor connected, LLM providers: {llm_providers}, TTS providers: {tts_providers}"
-    )
+    log.info(f"Monitor connected, LLM providers: {llm_providers}, TTS providers: {tts_providers}")
 
     await websocket.accept()
     try:

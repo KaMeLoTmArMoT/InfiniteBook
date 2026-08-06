@@ -45,10 +45,7 @@ async def _read_style_image_name(ps) -> str:
     obj = await ps.a_kv_get(_kv_style_image_key())
     if isinstance(obj, dict):
         obj = (
-            obj.get("comfy_name")
-            or obj.get("comfyname")
-            or obj.get("name")
-            or obj.get("filename")
+            obj.get("comfy_name") or obj.get("comfyname") or obj.get("name") or obj.get("filename")
         )
     return (obj or "").strip()
 
@@ -119,18 +116,14 @@ async def service_generate_anchors(
     in_ids = [c.id for c in req.characters]
     out_ids = [x.char_id for x in batch.items]
     if len(out_ids) != len(in_ids) or set(out_ids) != set(in_ids):
-        raise HTTPException(
-            status_code=502, detail="LLM returned mismatching char_id set"
-        )
+        raise HTTPException(status_code=502, detail="LLM returned mismatching char_id set")
 
     payload = batch.model_dump()
     await ps.a_kv_set(_kv_chars_anchors_key(), payload)
     return payload
 
 
-async def service_upload_style_image(
-    store, img_mgr, project_id: str, file: UploadFile
-) -> dict:
+async def service_upload_style_image(store, img_mgr, project_id: str, file: UploadFile) -> dict:
     ps = await require_project(store, project_id)
 
     data = await file.read()
@@ -146,9 +139,7 @@ async def service_upload_style_image(
 
     comfy_name = (res.get("name") or res.get("filename") or "").strip()
     if not comfy_name:
-        raise HTTPException(
-            status_code=502, detail=f"unexpected comfy upload response: {res}"
-        )
+        raise HTTPException(status_code=502, detail=f"unexpected comfy upload response: {res}")
 
     await ps.a_kv_set(_kv_style_image_key(), comfy_name)
     return {"ok": True, "style_image": comfy_name}
@@ -179,9 +170,7 @@ async def service_get_image_path(store, project_id: str, char_id: int) -> Path:
     return p
 
 
-async def generate_character_image_task(
-    *, request, project_id: str, char_id: int, img_mgr
-) -> None:
+async def generate_character_image_task(*, request, project_id: str, char_id: int, img_mgr) -> None:
     store = request.app.state.store
     ps = await require_project(store, project_id)
 
@@ -196,11 +185,7 @@ async def generate_character_image_task(
         scene_block = anchors.get("scene_block") or ""
 
         item = next(
-            (
-                x
-                for x in anchors.get("items", [])
-                if int(x.get("char_id")) == int(char_id)
-            ),
+            (x for x in anchors.get("items", []) if int(x.get("char_id")) == int(char_id)),
             None,
         )
         if not item:
@@ -243,9 +228,7 @@ async def generate_character_image_task(
             type_=img_meta.get("type", "output"),
         )
 
-        saved_path = await _save_png_for_project(
-            ps, project_id, png, kind=f"char_{char_id}"
-        )
+        saved_path = await _save_png_for_project(ps, project_id, png, kind=f"char_{char_id}")
 
         result = {
             "status": "DONE",

@@ -1,6 +1,6 @@
 # utils/pydantic_models.py
 from dataclasses import dataclass
-from typing import List, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -54,7 +54,7 @@ class RefineOption(BaseModel):
 
 
 class RefineResponse(BaseModel):
-    variations: List[RefineOption] = Field(
+    variations: list[RefineOption] = Field(
         ..., min_length=CFG.REFINE_VARIATIONS, max_length=CFG.REFINE_VARIATIONS
     )
 
@@ -67,7 +67,7 @@ class PlotChapter(BaseModel):
 
 class PlotResponse(BaseModel):
     structure_analysis: str
-    chapters: List[PlotChapter] = Field(
+    chapters: list[PlotChapter] = Field(
         ..., min_length=CFG.PLOT_CHAPTERS_MIN, max_length=CFG.PLOT_CHAPTERS_MAX
     )
 
@@ -79,13 +79,13 @@ class CharacterCard(BaseModel):
 
 
 class CharactersResponse(BaseModel):
-    protagonists: List[CharacterCard] = Field(
+    protagonists: list[CharacterCard] = Field(
         ..., min_length=CFG.PROTAGONISTS_MIN, max_length=CFG.PROTAGONISTS_MAX
     )
-    antagonists: List[CharacterCard] = Field(
+    antagonists: list[CharacterCard] = Field(
         ..., min_length=CFG.ANTAGONISTS_MIN, max_length=CFG.ANTAGONISTS_MAX
     )
-    supporting: List[CharacterCard] = Field(
+    supporting: list[CharacterCard] = Field(
         ..., min_length=CFG.SUPPORTING_MIN, max_length=CFG.SUPPORTING_MAX
     )
 
@@ -114,9 +114,7 @@ class CharacterPatch(BaseModel):
 
 
 class ChapterContinuity(BaseModel):
-    bullets: List[str] = Field(
-        default_factory=list, description="10–20 bullet continuity capsule"
-    )
+    bullets: list[str] = Field(default_factory=list, description="10–20 bullet continuity capsule")
 
 
 class ClearBeatRequest(BaseModel):
@@ -160,9 +158,7 @@ class CharacterReq(BaseModel):
     style_anchor: str = Field(default="")
     scene_block: str = Field(default="")
     character_anchor: str = Field(default="")
-    style_image: str = Field(
-        default="", description="Filename in Comfy input/. Use /upload first."
-    )
+    style_image: str = Field(default="", description="Filename in Comfy input/. Use /upload first.")
     width: int = 768
     height: int = 1152
     steps: int = 4
@@ -266,9 +262,7 @@ class CharactersAnchorsRequest(BaseModel):
 
 class ChapterSceneItem(BaseModel):
     beat_index: int = Field(..., description="The 0-based index of the beat")
-    visual_description: str = Field(
-        ..., description="Visual prompt for Stable Diffusion"
-    )
+    visual_description: str = Field(..., description="Visual prompt for Stable Diffusion")
     composition: str = Field(..., description="Camera angle (e.g. 'Wide shot')")
     primary_character_id: int | None = Field(
         None,

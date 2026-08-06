@@ -1,7 +1,7 @@
 # utils/memory_store.py
 import json
 import sqlite3
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import anyio
 
@@ -42,9 +42,7 @@ class MemoryStore:
             # --- migration: add language column to existing DBs
             cols = {r[1] for r in con.execute("PRAGMA table_info(projects)").fetchall()}
             if "language" not in cols:
-                con.execute(
-                    "ALTER TABLE projects ADD COLUMN language TEXT NOT NULL DEFAULT 'en'"
-                )
+                con.execute("ALTER TABLE projects ADD COLUMN language TEXT NOT NULL DEFAULT 'en'")
 
             # Composite PK ensures uniqueness per-project
             con.execute("""
@@ -87,47 +85,45 @@ class MemoryStore:
     async def a_init_db(self) -> None:
         await anyio.to_thread.run_sync(self.init_db)
 
-    async def a_create_project(self, title: str, language: str) -> Dict[str, Any]:
+    async def a_create_project(self, title: str, language: str) -> dict[str, Any]:
         return await anyio.to_thread.run_sync(self.create_project, title, language)
 
-    async def a_get_project(self, project_id: str) -> Optional[Dict[str, Any]]:
+    async def a_get_project(self, project_id: str) -> dict[str, Any] | None:
         return await anyio.to_thread.run_sync(self.get_project, project_id)
 
     async def a_get_project_language(self, project_id: str) -> str:
         return await anyio.to_thread.run_sync(self.get_project_language, project_id)
 
-    async def a_list_projects(self) -> List[Dict[str, Any]]:
+    async def a_list_projects(self) -> list[dict[str, Any]]:
         return await anyio.to_thread.run_sync(self.list_projects)
 
     async def a_delete_project(self, project_id: str) -> None:
         await anyio.to_thread.run_sync(self.delete_project, project_id)
 
     async def a_kv_set(
-        self, key: str, value: Dict[str, Any], *, project_id: str = DEFAULT_PROJECT_ID
+        self, key: str, value: dict[str, Any], *, project_id: str = DEFAULT_PROJECT_ID
     ) -> None:
         await anyio.to_thread.run_sync(self.kv_set, key, value, project_id)
 
     async def a_kv_get(
         self, key: str, *, project_id: str = DEFAULT_PROJECT_ID
-    ) -> Optional[Dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         return await anyio.to_thread.run_sync(self.kv_get, key, project_id)
 
-    async def a_kv_delete(
-        self, key: str, *, project_id: str = DEFAULT_PROJECT_ID
-    ) -> None:
+    async def a_kv_delete(self, key: str, *, project_id: str = DEFAULT_PROJECT_ID) -> None:
         await anyio.to_thread.run_sync(self.kv_delete, key, project_id)
 
     async def a_reset_all(self, *, project_id: str = DEFAULT_PROJECT_ID) -> None:
         await anyio.to_thread.run_sync(self.reset_all, project_id)
 
     async def a_save_characters(
-        self, payload: Dict[str, Any], *, project_id: str = DEFAULT_PROJECT_ID
+        self, payload: dict[str, Any], *, project_id: str = DEFAULT_PROJECT_ID
     ) -> None:
         await anyio.to_thread.run_sync(self.save_characters, payload, project_id)
 
     async def a_list_characters_grouped(
         self, *, project_id: str = DEFAULT_PROJECT_ID
-    ) -> Dict[str, List[Dict[str, Any]]]:
+    ) -> dict[str, list[dict[str, Any]]]:
         return await anyio.to_thread.run_sync(self.list_characters_grouped, project_id)
 
     async def a_delete_character(
@@ -138,17 +134,15 @@ class MemoryStore:
     async def a_update_character(
         self,
         char_id: int,
-        patch: Dict[str, Any],
+        patch: dict[str, Any],
         *,
         project_id: str = DEFAULT_PROJECT_ID,
-    ) -> Optional[Dict[str, Any]]:
-        return await anyio.to_thread.run_sync(
-            self.update_character, char_id, patch, project_id
-        )
+    ) -> dict[str, Any] | None:
+        return await anyio.to_thread.run_sync(self.update_character, char_id, patch, project_id)
 
     async def a_load_state(
         self, chapter: int = 1, *, project_id: str = DEFAULT_PROJECT_ID
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         return await anyio.to_thread.run_sync(self.load_state, chapter, project_id)
 
     async def a_kv_set_raw(
@@ -164,9 +158,7 @@ class MemoryStore:
     async def a_clear_beat_text(
         self, chapter: int, beat_index: int, *, project_id: str = DEFAULT_PROJECT_ID
     ) -> None:
-        await anyio.to_thread.run_sync(
-            self.clear_beat_text, chapter, beat_index, project_id
-        )
+        await anyio.to_thread.run_sync(self.clear_beat_text, chapter, beat_index, project_id)
 
     async def a_clear_beat_texts_from(
         self,
@@ -181,10 +173,8 @@ class MemoryStore:
 
     async def a_get_prev_chapter_continuity(
         self, chapter: int, *, project_id: str = DEFAULT_PROJECT_ID
-    ) -> Optional[str]:
-        return await anyio.to_thread.run_sync(
-            self.get_prev_chapter_continuity, chapter, project_id
-        )
+    ) -> str | None:
+        return await anyio.to_thread.run_sync(self.get_prev_chapter_continuity, chapter, project_id)
 
     async def a_get_prev_chapter_ending_excerpt(
         self,
@@ -192,14 +182,14 @@ class MemoryStore:
         max_chars: int = 4500,
         *,
         project_id: str = DEFAULT_PROJECT_ID,
-    ) -> Optional[str]:
+    ) -> str | None:
         return await anyio.to_thread.run_sync(
             self.get_prev_chapter_ending_excerpt, chapter, max_chars, project_id
         )
 
     async def a_get_chapter_beat_texts_ordered(
         self, chapter: int, *, project_id: str = DEFAULT_PROJECT_ID
-    ) -> List[str]:
+    ) -> list[str]:
         return await anyio.to_thread.run_sync(
             self.get_chapter_beat_texts_ordered, chapter, project_id
         )
@@ -207,9 +197,7 @@ class MemoryStore:
     async def a_get_last_written_beat_text(
         self, chapter: int, *, project_id: str = DEFAULT_PROJECT_ID
     ) -> str:
-        return await anyio.to_thread.run_sync(
-            self.get_last_written_beat_text, chapter, project_id
-        )
+        return await anyio.to_thread.run_sync(self.get_last_written_beat_text, chapter, project_id)
 
     async def a_project_exists(self, project_id: str) -> bool:
         return await anyio.to_thread.run_sync(self.project_exists, project_id)
@@ -217,7 +205,7 @@ class MemoryStore:
     # -------------------------
     # Project ops (sync)
     # -------------------------
-    def create_project(self, title: str, language: str) -> Dict[str, Any]:
+    def create_project(self, title: str, language: str) -> dict[str, Any]:
         # project_id = uuid.uuid4().hex
         project_id = make_project_id(title)
         with self._connect() as con:
@@ -228,7 +216,7 @@ class MemoryStore:
             con.commit()
         return {"id": project_id, "title": title, "language": language}
 
-    def get_project(self, project_id: str) -> Optional[Dict[str, Any]]:
+    def get_project(self, project_id: str) -> dict[str, Any] | None:
         with self._connect() as con:
             row = con.execute(
                 "SELECT id, title, language, created_at FROM projects WHERE id = ? LIMIT 1",
@@ -247,15 +235,12 @@ class MemoryStore:
         lang = (row[0] if row else "") or "en"
         return str(lang).strip().lower() or "en"
 
-    def list_projects(self) -> List[Dict[str, Any]]:
+    def list_projects(self) -> list[dict[str, Any]]:
         with self._connect() as con:
             rows = con.execute(
                 "SELECT id, title, language, created_at FROM projects ORDER BY created_at DESC"
             ).fetchall()
-        return [
-            {"id": r[0], "title": r[1], "language": r[2], "created_at": r[3]}
-            for r in rows
-        ]
+        return [{"id": r[0], "title": r[1], "language": r[2], "created_at": r[3]} for r in rows]
 
     def delete_project(self, project_id: str) -> None:
         if project_id == DEFAULT_PROJECT_ID:
@@ -268,9 +253,7 @@ class MemoryStore:
     # -------------------------
     # KV (sync)
     # -------------------------
-    def kv_set(
-        self, key: str, value: Dict[str, Any], project_id: str = DEFAULT_PROJECT_ID
-    ) -> None:
+    def kv_set(self, key: str, value: dict[str, Any], project_id: str = DEFAULT_PROJECT_ID) -> None:
         raw = json.dumps(value, ensure_ascii=False)
         with self._connect() as con:
             con.execute(
@@ -285,9 +268,7 @@ class MemoryStore:
             )
             con.commit()
 
-    def kv_get(
-        self, key: str, project_id: str = DEFAULT_PROJECT_ID
-    ) -> Optional[Dict[str, Any]]:
+    def kv_get(self, key: str, project_id: str = DEFAULT_PROJECT_ID) -> dict[str, Any] | None:
         with self._connect() as con:
             row = con.execute(
                 "SELECT json FROM kv WHERE project_id = ? AND key = ?",
@@ -299,14 +280,10 @@ class MemoryStore:
 
     def kv_delete(self, key: str, project_id: str = DEFAULT_PROJECT_ID) -> None:
         with self._connect() as con:
-            con.execute(
-                "DELETE FROM kv WHERE project_id = ? AND key = ?", (project_id, key)
-            )
+            con.execute("DELETE FROM kv WHERE project_id = ? AND key = ?", (project_id, key))
             con.commit()
 
-    def kv_set_raw(
-        self, key: str, raw_json: str, project_id: str = DEFAULT_PROJECT_ID
-    ) -> None:
+    def kv_set_raw(self, key: str, raw_json: str, project_id: str = DEFAULT_PROJECT_ID) -> None:
         with self._connect() as con:
             con.execute(
                 """
@@ -330,11 +307,9 @@ class MemoryStore:
     # Characters (sync)
     # -------------------------
     def save_characters(
-        self, payload: Dict[str, Any], project_id: str = DEFAULT_PROJECT_ID
+        self, payload: dict[str, Any], project_id: str = DEFAULT_PROJECT_ID
     ) -> None:
-        def rows(
-            kind: str, items: List[Dict[str, Any]]
-        ) -> List[Tuple[str, str, str, str, str]]:
+        def rows(kind: str, items: list[dict[str, Any]]) -> list[tuple[str, str, str, str, str]]:
             out = []
             for x in items:
                 out.append((project_id, kind, x["name"], x["role"], x["bio"]))
@@ -361,7 +336,7 @@ class MemoryStore:
 
     def list_characters_grouped(
         self, project_id: str = DEFAULT_PROJECT_ID
-    ) -> Dict[str, List[Dict[str, Any]]]:
+    ) -> dict[str, list[dict[str, Any]]]:
         with self._connect() as con:
             cur = con.execute(
                 "SELECT id, kind, name, role, bio FROM characters WHERE project_id = ? ORDER BY id ASC",
@@ -382,9 +357,7 @@ class MemoryStore:
                 grouped["supporting"].append(c)
         return grouped
 
-    def delete_character(
-        self, char_id: int, project_id: str = DEFAULT_PROJECT_ID
-    ) -> None:
+    def delete_character(self, char_id: int, project_id: str = DEFAULT_PROJECT_ID) -> None:
         with self._connect() as con:
             con.execute(
                 "DELETE FROM characters WHERE id = ? AND project_id = ?",
@@ -393,14 +366,14 @@ class MemoryStore:
             con.commit()
 
     def update_character(
-        self, char_id: int, patch: Dict[str, Any], project_id: str = DEFAULT_PROJECT_ID
-    ) -> Optional[Dict[str, Any]]:
+        self, char_id: int, patch: dict[str, Any], project_id: str = DEFAULT_PROJECT_ID
+    ) -> dict[str, Any] | None:
         allowed = {"name", "role", "bio", "kind"}
         fields = {k: v for k, v in patch.items() if k in allowed}
         if not fields:
             return None
 
-        set_sql = ", ".join([f"{k} = ?" for k in fields.keys()])
+        set_sql = ", ".join([f"{k} = ?" for k in fields])
         values = list(fields.values()) + [char_id, project_id]
 
         with self._connect() as con:
@@ -427,9 +400,7 @@ class MemoryStore:
     # -------------------------
     # State helpers (sync)
     # -------------------------
-    def load_state(
-        self, chapter: int = 1, project_id: str = DEFAULT_PROJECT_ID
-    ) -> Dict[str, Any]:
+    def load_state(self, chapter: int = 1, project_id: str = DEFAULT_PROJECT_ID) -> dict[str, Any]:
         selected = self.kv_get("selected", project_id=project_id) or None
         plot = self.kv_get("plot", project_id=project_id) or None
         characters = self.list_characters_grouped(project_id=project_id)
@@ -474,9 +445,7 @@ class MemoryStore:
     ) -> None:
         key = f"ch{chapter}_beat_{beat_index}"
         with self._connect() as con:
-            con.execute(
-                "DELETE FROM kv WHERE project_id = ? AND key = ?", (project_id, key)
-            )
+            con.execute("DELETE FROM kv WHERE project_id = ? AND key = ?", (project_id, key))
             con.commit()
 
     def clear_beat_texts_from(
@@ -501,14 +470,12 @@ class MemoryStore:
                     continue
 
             if keys_to_delete:
-                con.executemany(
-                    "DELETE FROM kv WHERE project_id = ? AND key = ?", keys_to_delete
-                )
+                con.executemany("DELETE FROM kv WHERE project_id = ? AND key = ?", keys_to_delete)
             con.commit()
 
     def get_prev_chapter_continuity(
         self, chapter: int, project_id: str = DEFAULT_PROJECT_ID
-    ) -> Optional[str]:
+    ) -> str | None:
         prev = chapter - 1
         if prev < 1:
             return None
@@ -533,7 +500,7 @@ class MemoryStore:
 
     def get_prev_chapter_ending_excerpt(
         self, chapter: int, max_chars: int = 4500, project_id: str = DEFAULT_PROJECT_ID
-    ) -> Optional[str]:
+    ) -> str | None:
         prev = chapter - 1
         if prev < 1:
             return None
@@ -585,7 +552,7 @@ class MemoryStore:
 
     def get_chapter_beat_texts_ordered(
         self, chapter: int, project_id: str = DEFAULT_PROJECT_ID
-    ) -> List[str]:
+    ) -> list[str]:
         prefix = f"ch{chapter}_beat_"
         like_pat = prefix + "%"
 
@@ -595,7 +562,7 @@ class MemoryStore:
                 (project_id, like_pat),
             ).fetchall()
 
-        parsed: List[Tuple[int, str]] = []
+        parsed: list[tuple[int, str]] = []
         for key, raw in rows:
             try:
                 idx = int(key.replace(prefix, ""))
@@ -609,9 +576,7 @@ class MemoryStore:
         parsed.sort(key=lambda x: x[0])
         return [t for _, t in parsed]
 
-    def get_last_written_beat_text(
-        self, chapter: int, project_id: str = DEFAULT_PROJECT_ID
-    ) -> str:
+    def get_last_written_beat_text(self, chapter: int, project_id: str = DEFAULT_PROJECT_ID) -> str:
         prefix = f"ch{chapter}_beat_"
         like_pat = prefix + "%"
 
@@ -668,10 +633,10 @@ class _ScopedStore:
         self.project_id = project_id
 
     # KV
-    async def a_kv_set(self, key: str, value: Dict[str, Any]) -> None:
+    async def a_kv_set(self, key: str, value: dict[str, Any]) -> None:
         await self._s.a_kv_set(key, value, project_id=self.project_id)
 
-    async def a_kv_get(self, key: str) -> Optional[Dict[str, Any]]:
+    async def a_kv_get(self, key: str) -> dict[str, Any] | None:
         return await self._s.a_kv_get(key, project_id=self.project_id)
 
     async def a_kv_delete(self, key: str) -> None:
@@ -681,57 +646,45 @@ class _ScopedStore:
         await self._s.a_kv_set_raw(key, raw_json, project_id=self.project_id)
 
     # Characters
-    async def a_save_characters(self, payload: Dict[str, Any]) -> None:
+    async def a_save_characters(self, payload: dict[str, Any]) -> None:
         await self._s.a_save_characters(payload, project_id=self.project_id)
 
-    async def a_list_characters_grouped(self) -> Dict[str, List[Dict[str, Any]]]:
+    async def a_list_characters_grouped(self) -> dict[str, list[dict[str, Any]]]:
         return await self._s.a_list_characters_grouped(project_id=self.project_id)
 
     async def a_delete_character(self, char_id: int) -> None:
         await self._s.a_delete_character(char_id, project_id=self.project_id)
 
     async def a_update_character(
-        self, char_id: int, patch: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
-        return await self._s.a_update_character(
-            char_id, patch, project_id=self.project_id
-        )
+        self, char_id: int, patch: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        return await self._s.a_update_character(char_id, patch, project_id=self.project_id)
 
     # State / beats helpers
-    async def a_load_state(self, chapter: int = 1) -> Dict[str, Any]:
+    async def a_load_state(self, chapter: int = 1) -> dict[str, Any]:
         return await self._s.a_load_state(chapter=chapter, project_id=self.project_id)
 
     async def a_list_beat_texts(self, chapter: int = 1) -> dict[int, str]:
-        return await self._s.a_list_beat_texts(
-            chapter=chapter, project_id=self.project_id
-        )
+        return await self._s.a_list_beat_texts(chapter=chapter, project_id=self.project_id)
 
     async def a_clear_beat_text(self, chapter: int, beat_index: int) -> None:
         await self._s.a_clear_beat_text(chapter, beat_index, project_id=self.project_id)
 
     async def a_clear_beat_texts_from(self, chapter: int, from_beat_index: int) -> None:
-        await self._s.a_clear_beat_texts_from(
-            chapter, from_beat_index, project_id=self.project_id
-        )
+        await self._s.a_clear_beat_texts_from(chapter, from_beat_index, project_id=self.project_id)
 
-    async def a_get_prev_chapter_continuity(self, chapter: int) -> Optional[str]:
-        return await self._s.a_get_prev_chapter_continuity(
-            chapter, project_id=self.project_id
-        )
+    async def a_get_prev_chapter_continuity(self, chapter: int) -> str | None:
+        return await self._s.a_get_prev_chapter_continuity(chapter, project_id=self.project_id)
 
     async def a_get_prev_chapter_ending_excerpt(
         self, chapter: int, max_chars: int = 4500
-    ) -> Optional[str]:
+    ) -> str | None:
         return await self._s.a_get_prev_chapter_ending_excerpt(
             chapter, max_chars=max_chars, project_id=self.project_id
         )
 
-    async def a_get_chapter_beat_texts_ordered(self, chapter: int) -> List[str]:
-        return await self._s.a_get_chapter_beat_texts_ordered(
-            chapter, project_id=self.project_id
-        )
+    async def a_get_chapter_beat_texts_ordered(self, chapter: int) -> list[str]:
+        return await self._s.a_get_chapter_beat_texts_ordered(chapter, project_id=self.project_id)
 
     async def a_get_last_written_beat_text(self, chapter: int) -> str:
-        return await self._s.a_get_last_written_beat_text(
-            chapter, project_id=self.project_id
-        )
+        return await self._s.a_get_last_written_beat_text(chapter, project_id=self.project_id)

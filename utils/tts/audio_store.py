@@ -43,14 +43,7 @@ def wav_path(project_id: str, provider: str, chapter: int, beat_index: int) -> P
     chapter = int(chapter)
     beat_index = int(beat_index)
 
-    return (
-        AUDIO_ROOT
-        / project_id
-        / "audio"
-        / provider
-        / f"ch_{chapter}"
-        / f"beat_{beat_index}.wav"
-    )
+    return AUDIO_ROOT / project_id / "audio" / provider / f"ch_{chapter}" / f"beat_{beat_index}.wav"
 
 
 def wav_url(project_id: str, provider: str, chapter: int, beat_index: int) -> str:

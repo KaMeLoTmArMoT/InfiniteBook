@@ -120,9 +120,7 @@ class XttsTtsProvider:
                     self.tts = await asyncio.to_thread(_load_finetune)
                     self._loaded_variant = "finetune"
                 except Exception as e:
-                    log.warning(
-                        "XTTS finetune load failed -> fallback to default: %r", e
-                    )
+                    log.warning("XTTS finetune load failed -> fallback to default: %r", e)
                     self.tts = await asyncio.to_thread(_load_default)
                     self._loaded_variant = "default"
             else:
@@ -150,9 +148,7 @@ class XttsTtsProvider:
 
     def _ensure_loaded(self) -> None:
         if self.tts is None:
-            raise RuntimeError(
-                "XTTS provider is not initialized; call await ainit() first"
-            )
+            raise RuntimeError("XTTS provider is not initialized; call await ainit() first")
 
     def _speaker_exists(self, name: str) -> bool:
         if not name or self.tts is None:
@@ -179,18 +175,14 @@ class XttsTtsProvider:
             return default
 
         custom = (
-            CFG.XTTS_DIALOG_VOICE_RU_CUSTOM
-            if kind == "dialog"
-            else CFG.XTTS_NARR_VOICE_RU_CUSTOM
+            CFG.XTTS_DIALOG_VOICE_RU_CUSTOM if kind == "dialog" else CFG.XTTS_NARR_VOICE_RU_CUSTOM
         )
         if not custom:
             return default
 
         return custom if self._speaker_exists(custom) else default
 
-    def write_wav_for_text(
-        self, text: str, out_path: str, project_lang_code: str
-    ) -> str:
+    def write_wav_for_text(self, text: str, out_path: str, project_lang_code: str) -> str:
         self._ensure_loaded()
 
         spans = split_dialog_spans(text, project_lang_code)
@@ -209,24 +201,18 @@ class XttsTtsProvider:
             wf.setnchannels(self.ch)
 
             if self.lead_in_ms > 0:
-                wf.writeframes(
-                    silence_bytes(self.lead_in_ms, self.sr, self.sw, self.ch)
-                )
+                wf.writeframes(silence_bytes(self.lead_in_ms, self.sr, self.sw, self.ch))
 
             for s in spans:
                 if s.kind == "pause":
-                    wf.writeframes(
-                        silence_bytes(self.pause_ms, self.sr, self.sw, self.ch)
-                    )
+                    wf.writeframes(silence_bytes(self.pause_ms, self.sr, self.sw, self.ch))
                     continue
 
                 if not s.text.strip():
                     continue
 
                 if self.gap_ms > 0:
-                    wf.writeframes(
-                        silence_bytes(self.gap_ms, self.sr, self.sw, self.ch)
-                    )
+                    wf.writeframes(silence_bytes(self.gap_ms, self.sr, self.sw, self.ch))
 
                 speaker = self._pick_speaker(s.kind, project_lang_code)
                 # log.info("Speaker: %s", speaker)

@@ -141,9 +141,14 @@ class F5TtsProvider:
             raise FileNotFoundError(f"F5 Checkpoint for '{lang}' not found at: {ckpt}")
 
         log.info(f"Loading F5 {lang.upper()} model from {ckpt}...")
-        model_cfg = dict(
-            dim=1024, depth=22, heads=16, ff_mult=2, text_dim=512, conv_layers=4
-        )
+        model_cfg = {
+            "dim": 1024,
+            "depth": 22,
+            "heads": 16,
+            "ff_mult": 2,
+            "text_dim": 512,
+            "conv_layers": 4,
+        }
 
         self.active_model = load_model(
             DiT, model_cfg, ckpt, mel_spec_type="vocos", device=self.device
@@ -166,9 +171,7 @@ class F5TtsProvider:
 
     def _ensure_shared_loaded(self) -> None:
         if not self._shared_loaded:
-            raise RuntimeError(
-                "F5TtsProvider not initialized; call await ainit() first"
-            )
+            raise RuntimeError("F5TtsProvider not initialized; call await ainit() first")
 
     def _normalize_audio_tensor(
         self, audio_tensor: np.ndarray, target_level: float = -1.0
@@ -220,7 +223,7 @@ class F5TtsProvider:
             return t
 
         # 1. Replace "continuation" marks with "stop" marks
-        if t.endswith((":")):
+        if t.endswith(":"):
             return t[:-1] + "."
         if t.endswith(";"):
             return t[:-1] + "."
@@ -262,9 +265,7 @@ class F5TtsProvider:
                 continue
 
             if len(current_buffer) + len(sentence) + 1 <= max_chars:
-                current_buffer = (
-                    (current_buffer + " " + sentence) if current_buffer else sentence
-                )
+                current_buffer = (current_buffer + " " + sentence) if current_buffer else sentence
             else:
                 flush_buffer()
                 if len(sentence) <= max_chars:
@@ -279,9 +280,7 @@ class F5TtsProvider:
                             continue
 
                         if len(sub_buffer) + len(part) + 1 <= max_chars:
-                            sub_buffer = (
-                                (sub_buffer + " " + part) if sub_buffer else part
-                            )
+                            sub_buffer = (sub_buffer + " " + part) if sub_buffer else part
                         else:
                             if sub_buffer:
                                 final_chunks.append(sub_buffer.strip())
@@ -292,9 +291,7 @@ class F5TtsProvider:
         flush_buffer()
         return final_chunks
 
-    def write_wav_for_text(
-        self, text: str, out_path: str, project_lang_code: str = "en"
-    ) -> str:
+    def write_wav_for_text(self, text: str, out_path: str, project_lang_code: str = "en") -> str:
         self._ensure_shared_loaded()
 
         lang = "ru" if project_lang_code == "ru" else "en"

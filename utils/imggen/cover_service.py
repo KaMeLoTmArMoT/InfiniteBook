@@ -30,9 +30,7 @@ def _join_cover_prompt(anchors: dict) -> str:
     return "\n\n".join(parts).strip()
 
 
-async def _generate_cover_image_task(
-    request: Request, project_id: str, img_mgr
-) -> None:
+async def _generate_cover_image_task(request: Request, project_id: str, img_mgr) -> None:
     store = request.app.state.store
     model = request.app.state.model
     ps = await require_project(store, project_id)

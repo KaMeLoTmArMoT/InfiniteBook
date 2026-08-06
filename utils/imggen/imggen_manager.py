@@ -3,8 +3,9 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 from utils.core_logger import log
 from utils.imggen.image_store import save_image_bytes
@@ -88,9 +89,7 @@ class ImgGenManager:
         asyncio.create_task(self._run_job_common(job_id, run_fn))
         return job_id
 
-    async def submit_flux2_klein_t2i_distilled(
-        self, params: Flux2KleinT2IDistilledParams
-    ) -> str:
+    async def submit_flux2_klein_t2i_distilled(self, params: Flux2KleinT2IDistilledParams) -> str:
         job_id = uuid.uuid4().hex
         job = ImgJob(
             job_id=job_id,
@@ -151,9 +150,7 @@ class ImgGenManager:
                             type_=img.get("type", "output"),
                         )
                         stored = save_image_bytes(job_id, idx, b, ext="png")
-                        saved.append(
-                            {"index": idx, "url": stored.url, "path": str(stored.path)}
-                        )
+                        saved.append({"index": idx, "url": stored.url, "path": str(stored.path)})
                         idx += 1
 
                 job.images = saved
@@ -176,6 +173,4 @@ class ImgGenManager:
                 job.ended_at = time.time()
                 job.state = "error"
                 job.error = repr(e)
-                log.exception(
-                    "IMGGEN error job_id=%s pipeline=%s err=%r", job_id, job.pipeline, e
-                )
+                log.exception("IMGGEN error job_id=%s pipeline=%s err=%r", job_id, job.pipeline, e)

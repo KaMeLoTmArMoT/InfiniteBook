@@ -40,9 +40,7 @@ async def _next_cover_seq(ps) -> int:
     return nxt
 
 
-async def _save_png_for_project(
-    ps, project_id: str, png_bytes: bytes, kind: str = "cover"
-) -> str:
+async def _save_png_for_project(ps, project_id: str, png_bytes: bytes, kind: str = "cover") -> str:
     seq = await _next_cover_seq(ps)
     out = IMG_DIR / project_id
     out.mkdir(parents=True, exist_ok=True)

@@ -78,9 +78,7 @@ async def cover_image(request: Request, project_id: str):
 
 
 @router.post("/projects/{project_id}/characters")
-async def generate_characters(
-    request: Request, project_id: str, req: CharactersRequest
-):
+async def generate_characters(request: Request, project_id: str, req: CharactersRequest):
     log.info(f"Step 3: Generating characters text. Project={project_id}")
 
     store = request.app.state.store
@@ -169,12 +167,8 @@ async def generate_plot(request: Request, project_id: str, req: PlotRequest):
     await ps.a_kv_set("selected", req.model_dump())
     job = await ps.a_kv_get(_kv_job_key("cover")) or {}
     if job.get("status") != "RUNNING":
-        log.info(
-            f"Step 2.1: Generating image. Project={project_id}, Title='{req.title}'"
-        )
-        task = asyncio.create_task(
-            _generate_cover_image_task(request, project_id, IMG_MGR)
-        )
+        log.info(f"Step 2.1: Generating image. Project={project_id}, Title='{req.title}'")
+        task = asyncio.create_task(_generate_cover_image_task(request, project_id, IMG_MGR))
         _attach_task_logger(task, f"cover:{project_id}")
     else:
         log.info(
@@ -195,18 +189,14 @@ async def generate_plot(request: Request, project_id: str, req: PlotRequest):
         language=project_language,
     )
 
-    plot: PlotResponse = await call_llm_json(
-        model, prompt, PlotResponse, temperature=CFG.TEMP_PLOT
-    )
+    plot: PlotResponse = await call_llm_json(model, prompt, PlotResponse, temperature=CFG.TEMP_PLOT)
     payload = plot.model_dump()
     await ps.a_kv_set("plot", payload)
     return payload
 
 
 @router.post("/projects/{project_id}/chapter_plan")
-async def generate_chapter_plan(
-    request: Request, project_id: str, req: ChapterPlanRequest
-):
+async def generate_chapter_plan(request: Request, project_id: str, req: ChapterPlanRequest):
     store = request.app.state.store
     model = request.app.state.model
     ps = await require_project(store, project_id)
@@ -217,9 +207,7 @@ async def generate_chapter_plan(
     )
 
     if req.characters and isinstance(req.characters[0], dict):
-        characters_present = ", ".join(
-            [c.get("name", "") for c in req.characters if c.get("name")]
-        )
+        characters_present = ", ".join([c.get("name", "") for c in req.characters if c.get("name")])
     else:
         characters_present = ", ".join([str(x) for x in req.characters])
 
@@ -236,18 +224,14 @@ async def generate_chapter_plan(
                         chapter_prose="\n\n".join(texts),
                         language=project_language,
                     )
-                    capsule = await call_llm_json(
-                        model, prompt, ChapterContinuity, temperature=0.2
-                    )
+                    capsule = await call_llm_json(model, prompt, ChapterContinuity, temperature=0.2)
                     await ps.a_kv_set(prev_key, capsule.model_dump())
             except Exception:
                 log.error("Failed to build previous chapter continuity")
                 pass
 
     prev_cont = await ps.a_get_prev_chapter_continuity(req.chapter)
-    prev_excerpt = await ps.a_get_prev_chapter_ending_excerpt(
-        req.chapter, max_chars=4500
-    )
+    prev_excerpt = await ps.a_get_prev_chapter_ending_excerpt(req.chapter, max_chars=4500)
 
     prompt = PROMPT_CHAPTER_BEATS.format(
         title=req.title,
@@ -273,9 +257,7 @@ async def generate_chapter_plan(
 
 
 @router.get("/projects/{project_id}/write_beat")
-async def write_beat(
-    request: Request, project_id: str, chapter: int = 1, beat_index: int = 0
-):
+async def write_beat(request: Request, project_id: str, chapter: int = 1, beat_index: int = 0):
     store = request.app.state.store
     model = request.app.state.model
     ps = await require_project(store, project_id)
@@ -312,9 +294,7 @@ async def write_beat(
     )
 
     payload = result.model_dump()
-    await ps.a_kv_set(
-        f"ch{chapter}_beat_{beat_index}", {"beat_index": beat_index, **payload}
-    )
+    await ps.a_kv_set(f"ch{chapter}_beat_{beat_index}", {"beat_index": beat_index, **payload})
     return payload
 
 
@@ -322,9 +302,7 @@ async def write_beat(
 
 
 @router.post("/projects/{project_id}/chapter/continuity")
-async def build_chapter_continuity(
-    request: Request, project_id: str, req: BuildContinuityRequest
-):
+async def build_chapter_continuity(request: Request, project_id: str, req: BuildContinuityRequest):
     store = request.app.state.store
     model = request.app.state.model
     ps = await require_project(store, project_id)
@@ -395,9 +373,7 @@ async def character_image_file(request: Request, project_id: str, char_id: int):
 
 
 @router.post("/projects/{project_id}/style_image")
-async def set_style_image(
-    request: Request, project_id: str, file: UploadFile = File(...)
-):
+async def set_style_image(request: Request, project_id: str, file: UploadFile = File(...)):
     img_mgr = getattr(request.app.state, "imggenprovider", None) or IMG_MGR
 
     return await service_upload_style_image(
@@ -425,9 +401,7 @@ async def generate_chapter_scenes(request: Request, project_id: str, chapter_num
 
 
 @router.get("/projects/{project_id}/chapters/{chapter_num}/scenes/status")
-async def get_chapter_scenes_status(
-    request: Request, project_id: str, chapter_num: int
-):
+async def get_chapter_scenes_status(request: Request, project_id: str, chapter_num: int):
     """Returns statuses of all generated scenes for the chapter."""
     ps = await require_project(request.app.state.store, project_id)
 
@@ -468,9 +442,7 @@ async def get_chapter_scenes_status(
 
 
 @router.get("/projects/{project_id}/chapters/{chapter_num}/scenes/{beat_index}/image")
-async def get_scene_image(
-    request: Request, project_id: str, chapter_num: int, beat_index: int
-):
+async def get_scene_image(request: Request, project_id: str, chapter_num: int, beat_index: int):
     ps = await require_project(request.app.state.store, project_id)
     res = await ps.a_kv_get(_kv_scene_result_key(chapter_num, beat_index)) or {}
     saved_path = res.get("saved_path")

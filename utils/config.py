@@ -8,9 +8,7 @@ class AppConfig(BaseSettings):
     Can be overridden with environment variables or a .env file later.
     """
 
-    model_config = SettingsConfigDict(
-        env_prefix="IB_", env_file=".env", env_file_encoding="utf-8"
-    )
+    model_config = SettingsConfigDict(env_prefix="IB_", env_file=".env", env_file_encoding="utf-8")
     MODEL_NAME: str = "gemma3:12b"
 
     # Generation sizes
@@ -88,9 +86,7 @@ class AppConfig(BaseSettings):
     COMFY_OUTPUT_POLL_MS: int = 500
     COMFY_MAX_CONCURRENCY: int = 1
 
-    F5_CKPT_RU: str = (
-        "tts_models/F5-TTS/F5TTS_v1_Base_v4_winter/model_212000.safetensors"
-    )
+    F5_CKPT_RU: str = "tts_models/F5-TTS/F5TTS_v1_Base_v4_winter/model_212000.safetensors"
     F5_REF_AUDIO_RU: str = "docs/ref/maksim_suslov_00012.wav"
     F5_REF_TEXT_RU: str = "Поэтому он будет стараться улучшить то, что он может улучшить, в частности, продлить ресурс самолета, то есть сделать его более долговечным."
 

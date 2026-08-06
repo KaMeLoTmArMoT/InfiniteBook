@@ -53,7 +53,7 @@ Structure requirements:
 - All titles and summaries must be written in {language}.
 
 CRITICAL PLOT RULES:
-- Continuous Narrative: This is ONE continuous story, not an anthology. 
+- Continuous Narrative: This is ONE continuous story, not an anthology.
 - The protagonist(s) introduced in Chapter 1 must be the focus of Chapter 2, 3, etc.
 - Cause and Effect: The events of Chapter X must directly cause the events of Chapter X+1.
 

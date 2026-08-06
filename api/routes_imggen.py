@@ -111,9 +111,7 @@ async def upload_image(file: UploadFile = File(...)):
 
     comfy_name = res.get("name") or res.get("filename")
     if not comfy_name:
-        raise HTTPException(
-            status_code=502, detail=f"unexpected comfy upload response: {res}"
-        )
+        raise HTTPException(status_code=502, detail=f"unexpected comfy upload response: {res}")
 
     return UploadResp(comfy_name=comfy_name, raw=res)
 

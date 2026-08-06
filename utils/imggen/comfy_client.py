@@ -53,18 +53,14 @@ class ComfyClient:
         async with self._s().post(f"{self.base}/prompt", json=payload) as r:
             r.raise_for_status()
             data = await r.json()
-        return ComfyPromptResponse(
-            prompt_id=data["prompt_id"], number=data.get("number")
-        )
+        return ComfyPromptResponse(prompt_id=data["prompt_id"], number=data.get("number"))
 
     async def history(self, prompt_id: str) -> dict[str, Any]:
         async with self._s().get(f"{self.base}/history/{prompt_id}") as r:
             r.raise_for_status()
             return await r.json()
 
-    async def view(
-        self, filename: str, subfolder: str = "", type_: str = "output"
-    ) -> bytes:
+    async def view(self, filename: str, subfolder: str = "", type_: str = "output") -> bytes:
         params = {"filename": filename, "subfolder": subfolder, "type": type_}
         async with self._s().get(f"{self.base}/view", params=params) as r:
             r.raise_for_status()
@@ -74,9 +70,7 @@ class ComfyClient:
         async with self._s().post(f"{self.base}/interrupt") as r:
             r.raise_for_status()
 
-    async def free(
-        self, unload_models: bool = True, free_memory: bool = True
-    ) -> dict[str, Any]:
+    async def free(self, unload_models: bool = True, free_memory: bool = True) -> dict[str, Any]:
         # comfy /free exists and is meant for unloading/freeing memory [page:1]
         payload = {"unload_models": unload_models, "free_memory": free_memory}
         async with self._s().post(f"{self.base}/free", json=payload) as r:

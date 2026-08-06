@@ -1,7 +1,6 @@
 # utils/tts/tts_common.py
 import re
 from dataclasses import dataclass
-from typing import Dict, List
 
 from num2words import num2words
 
@@ -13,7 +12,7 @@ except ImportError:
     HAS_TRANSLIT = False
 
 
-def get_symbol_map(lang: str) -> Dict[str, str]:
+def get_symbol_map(lang: str) -> dict[str, str]:
     """Returns the symbol map for the specified language."""
     if lang.startswith("ru"):
         return {
@@ -94,9 +93,7 @@ class TextNormalizer:
     def __init__(self, lang: str = "en", use_translit: bool = False):
         self._want_translit = bool(use_translit)
         self.lang = canon_lang(lang)
-        self.use_translit = (
-            self._want_translit and HAS_TRANSLIT and self.lang in ["ru", "uk"]
-        )
+        self.use_translit = self._want_translit and HAS_TRANSLIT and self.lang in ["ru", "uk"]
         self.symbol_map = get_symbol_map(self.lang)
 
     def _basic_clean(self, text: str) -> str:
@@ -127,9 +124,7 @@ class TextNormalizer:
         if new_lang != self.lang:
             self.lang = new_lang
             self.symbol_map = get_symbol_map(self.lang)
-            self.use_translit = (
-                self._want_translit and HAS_TRANSLIT and self.lang in ["ru", "uk"]
-            )
+            self.use_translit = self._want_translit and HAS_TRANSLIT and self.lang in ["ru", "uk"]
 
     def normalize(self, text: str, project_lang_code: str) -> str:
         if not text:
@@ -181,9 +176,7 @@ def _clean_leading_punctuation(text: str) -> str:
     return re.sub(r"^[\s.,!?;:\-—–]+", "", text).strip()
 
 
-def split_dialog_spans(
-    text: str, project_lang_code: str, normalize: bool = True
-) -> List[Span]:
+def split_dialog_spans(text: str, project_lang_code: str, normalize: bool = True) -> list[Span]:
     """
     Splits text into narrative and dialog spans.
 
@@ -205,10 +198,10 @@ def split_dialog_spans(
         re.DOTALL,
     )
 
-    spans: List[Span] = []
+    spans: list[Span] = []
     parts = quote_pattern.split(text)
 
-    for idx, part in enumerate(parts):
+    for _idx, part in enumerate(parts):
         if not part:
             continue
 
@@ -244,10 +237,8 @@ def split_dialog_spans(
                     # Key fix: Remove leading dashes/dots/commas from narrative chunks
                     clean_p = _clean_leading_punctuation(clean_p)
 
-                if clean_p.strip():
-                    # Filter out spans that became empty or are just symbols
-                    if not normalize or _is_meaningful(clean_p):
-                        spans.append(Span("narr", clean_p))
+                if clean_p.strip() and (not normalize or _is_meaningful(clean_p)):
+                    spans.append(Span("narr", clean_p))
 
                 # Add pause if it's not the last paragraph block
                 if sub_idx < len(sub_parts) - 1:

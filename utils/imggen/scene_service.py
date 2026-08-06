@@ -258,9 +258,7 @@ async def service_run_scene_generation_pipeline(
                 img_mgr=img_mgr,
             )
         )
-        _attach_task_logger(
-            task, f"scene:{project_id}:{chapter_num}:{scene.beat_index}"
-        )
+        _attach_task_logger(task, f"scene:{project_id}:{chapter_num}:{scene.beat_index}")
         count += 1
 
     return count

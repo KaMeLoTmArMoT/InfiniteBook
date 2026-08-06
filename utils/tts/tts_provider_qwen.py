@@ -4,7 +4,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal
 
 import httpx
 from pydantic import BaseModel, Field
@@ -13,9 +13,7 @@ from utils.core_logger import log
 from utils.tts.tts_common import split_dialog_spans
 
 NARR_INSTRUCT = "Professional audiobook narration; steady, clear, subtle emotion."
-DIALOG_INSTRUCT = (
-    "Conversational, natural dialogue; slightly more expressive than narration."
-)
+DIALOG_INSTRUCT = "Conversational, natural dialogue; slightly more expressive than narration."
 
 
 # ----------------------------
@@ -28,16 +26,14 @@ class SpanIn(BaseModel):
 
 
 class ChapterReq(BaseModel):
-    book_id: Optional[str] = None
-    chapter_id: Optional[str] = None
+    book_id: str | None = None
+    chapter_id: str | None = None
 
-    spans: List[SpanIn]
+    spans: list[SpanIn]
 
     language: str = "English"
-    speaker_map: Dict[str, str] = Field(
-        default_factory=lambda: {"narr": "Aiden", "dialog": "Ryan"}
-    )
-    instruct_map: Dict[str, str] = Field(
+    speaker_map: dict[str, str] = Field(default_factory=lambda: {"narr": "Aiden", "dialog": "Ryan"})
+    instruct_map: dict[str, str] = Field(
         default_factory=lambda: {"narr": NARR_INSTRUCT, "dialog": DIALOG_INSTRUCT}
     )
 
@@ -65,7 +61,7 @@ class AsyncQwenApiClient:
     async def aclose(self):
         await self._client.aclose()  # must be awaited
 
-    async def state(self) -> Dict[str, Any]:
+    async def state(self) -> dict[str, Any]:
         r = await self._client.get("/state")
         r.raise_for_status()
         return r.json()
@@ -75,7 +71,7 @@ class AsyncQwenApiClient:
         model_id: str,
         dtype: str = "float16",
         attn_implementation: str = "flash_attention_2",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         r = await self._client.post(
             "/load",
             json={
@@ -87,7 +83,7 @@ class AsyncQwenApiClient:
         r.raise_for_status()
         return r.json()
 
-    async def unload(self) -> Dict[str, Any]:
+    async def unload(self) -> dict[str, Any]:
         r = await self._client.post("/unload")
         r.raise_for_status()
         return r.json()
@@ -121,10 +117,10 @@ class QwenTtsProvider:
     pause_ms: int = 450
     fade_ms: int = 18
 
-    _api: Optional["AsyncQwenApiClient"] = None
+    _api: AsyncQwenApiClient | None = None
     _loaded: bool = False
 
-    async def ainit(self) -> "QwenTtsProvider":
+    async def ainit(self) -> QwenTtsProvider:
         self._api = AsyncQwenApiClient(base_url=self.api_url, timeout_s=self.timeout_s)
         log.info("QwenTtsProvider: load model_id=%s", self.model_id)
         await self._api.load(
@@ -146,9 +142,7 @@ class QwenTtsProvider:
         self._api = None
         self._loaded = False
 
-    async def write_wav_for_text(
-        self, text: str, out_path: str, project_lang_code: str
-    ) -> str:
+    async def write_wav_for_text(self, text: str, out_path: str, project_lang_code: str) -> str:
         spans = split_dialog_spans(text, project_lang_code)
         if not spans:
             raise ValueError("No text/spans")
@@ -181,28 +175,26 @@ class QwenTtsProvider:
 
     async def generate_chapter(
         self,
-        spans: List[Dict[str, Any]] | List[SpanIn],
+        spans: list[dict[str, Any]] | list[SpanIn],
         *,
         language: str = "English",
-        speaker_map: Optional[Dict[str, str]] = None,
-        instruct_map: Optional[Dict[str, str]] = None,
-        book_id: Optional[str] = None,
-        chapter_id: Optional[str] = None,
+        speaker_map: dict[str, str] | None = None,
+        instruct_map: dict[str, str] | None = None,
+        book_id: str | None = None,
+        chapter_id: str | None = None,
         lead_in_ms: int = 600,
         gap_ms: int = 60,
         default_pause_ms: int = 450,
         fade_ms: int = 18,
         max_new_tokens: int = 1024,
         do_sample: bool = False,
-        out_path: Optional[Union[str, Path]] = None,
+        out_path: str | Path | None = None,
     ) -> bytes:
         if not self._api or not self._loaded:
-            raise RuntimeError(
-                "QwenTtsProvider not initialized. Call await provider.ainit()."
-            )
+            raise RuntimeError("QwenTtsProvider not initialized. Call await provider.ainit().")
 
         # Accept either raw dicts or SpanIn objects
-        span_models: List[SpanIn] = []
+        span_models: list[SpanIn] = []
         for s in spans:
             if isinstance(s, SpanIn):
                 span_models.append(s)
@@ -215,8 +207,7 @@ class QwenTtsProvider:
             spans=span_models,
             language=language,
             speaker_map=speaker_map or {"narr": "Aiden", "dialog": "Ryan"},
-            instruct_map=instruct_map
-            or {"narr": NARR_INSTRUCT, "dialog": DIALOG_INSTRUCT},
+            instruct_map=instruct_map or {"narr": NARR_INSTRUCT, "dialog": DIALOG_INSTRUCT},
             lead_in_ms=lead_in_ms,
             gap_ms=gap_ms,
             default_pause_ms=default_pause_ms,

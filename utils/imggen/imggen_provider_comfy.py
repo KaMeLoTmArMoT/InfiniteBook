@@ -70,9 +70,7 @@ class ComfyImgGenProvider:
 
         client_id = str(uuid.uuid4())
         resp = await self.client.prompt(graph, client_id=client_id)
-        log.info(
-            "Comfy submit distilled prompt_id=%s queue=%s", resp.prompt_id, resp.number
-        )
+        log.info("Comfy submit distilled prompt_id=%s queue=%s", resp.prompt_id, resp.number)
 
         item = await self.client.wait_done(
             resp.prompt_id,
@@ -119,9 +117,7 @@ class ComfyImgGenProvider:
         )
         return await self.run_flux2_klein_t2i_distilled_gguf(params)
 
-    async def run_character_from_style_gguf(
-        self, params: CharacterFromStyleParams
-    ) -> dict:
+    async def run_character_from_style_gguf(self, params: CharacterFromStyleParams) -> dict:
         tpl = self._tpl("flux2_klein_character_style_ref_gguf")
         params = CharacterFromStyleParams(
             **{**params.__dict__, "seed": random.randint(1, 2**31 - 1)}
@@ -142,9 +138,7 @@ class ComfyImgGenProvider:
             "seed": params.seed,
         }
 
-    async def run_scene_dual_ref_gguf(
-        self, params: SceneFromStyleAndCharParams
-    ) -> dict:
+    async def run_scene_dual_ref_gguf(self, params: SceneFromStyleAndCharParams) -> dict:
         tpl = self._tpl("flux2_klein_scene_dual_ref_gguf")
 
         # gen seed if 0
