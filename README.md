@@ -1,18 +1,9 @@
-<div align="center">
-  <h3 align="center">Infinite Book Architect</h3>
+# Infinite Book Architect
 
-  <p align="center">
-    A local-first, single-page app that turns an idea into a full chapter-by-chapter novel.
-    <br />
-    Idea → Plot → Characters → Chapter Beats → Beat Prose, with local Ollama or cloud OpenRouter models.
-    <br /><br />
-    <a href="https://kamelotmarmot.github.io/InfiniteBook/"><strong>View Demo »</strong></a>
-    ·
-    <a href="../../issues">Report Bug</a>
-    ·
-    <a href="../../issues">Request Feature</a>
-  </p>
-</div>
+A local-first, single-page app that turns an idea into a full chapter-by-chapter novel.
+Idea → Plot → Characters → Chapter Beats → Beat Prose, with local Ollama or cloud OpenRouter models.
+
+[View Demo »](https://kamelotmarmot.github.io/InfiniteBook/) · [Report Bug](../../issues) · [Request Feature](../../issues)
 
 ## About The Project
 
