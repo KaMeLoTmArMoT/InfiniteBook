@@ -9,35 +9,41 @@ from utils.config import CFG
 BeatType = Literal["Dialogue", "Action", "Description", "Internal Monologue"]
 
 
+MAX_IDEA = 4000
+MAX_TITLE = 200
+MAX_GENRE = 80
+MAX_DESC = 8000
+
+
 # --- REQUEST MODELS (API input contracts) ---
 class RefineRequest(BaseModel):
-    genre: str
-    idea: str
+    genre: str = Field(min_length=1, max_length=MAX_GENRE)
+    idea: str = Field(min_length=1, max_length=MAX_IDEA)
 
 
 class PlotRequest(BaseModel):
-    title: str
-    genre: str
-    description: str
+    title: str = Field(min_length=1, max_length=MAX_TITLE)
+    genre: str = Field(min_length=1, max_length=MAX_GENRE)
+    description: str = Field(min_length=1, max_length=MAX_DESC)
 
 
 class CharactersRequest(BaseModel):
-    title: str
-    genre: str
-    plot_summary: str
+    title: str = Field(min_length=1, max_length=MAX_TITLE)
+    genre: str = Field(min_length=1, max_length=MAX_GENRE)
+    plot_summary: str = Field(min_length=1, max_length=MAX_DESC)
 
 
 class ChapterPlanRequest(BaseModel):
-    chapter: int = 1
-    title: str
-    genre: str
-    chapter_title: str
-    chapter_summary: str
-    characters: list
+    chapter: int = Field(default=1, ge=1, le=10_000)
+    title: str = Field(min_length=1, max_length=MAX_TITLE)
+    genre: str = Field(min_length=1, max_length=MAX_GENRE)
+    chapter_title: str = Field(min_length=1, max_length=MAX_TITLE)
+    chapter_summary: str = Field(min_length=1, max_length=MAX_DESC)
+    characters: list = Field(default_factory=list, max_length=200)
 
 
 class BuildContinuityRequest(BaseModel):
-    chapter: int
+    chapter: int = Field(ge=1, le=10_000)
 
 
 # --- RESPONSE MODELS (LLM output contracts) ---
@@ -107,10 +113,10 @@ class ChapterPlanResponse(BaseModel):
 
 
 class CharacterPatch(BaseModel):
-    name: str | None = None
-    role: str | None = None
-    bio: str | None = None
-    kind: str | None = None
+    name: str | None = Field(default=None, max_length=MAX_TITLE)
+    role: str | None = Field(default=None, max_length=MAX_GENRE)
+    bio: str | None = Field(default=None, max_length=MAX_DESC)
+    kind: str | None = Field(default=None, max_length=40)
 
 
 class ChapterContinuity(BaseModel):
@@ -118,13 +124,13 @@ class ChapterContinuity(BaseModel):
 
 
 class ClearBeatRequest(BaseModel):
-    chapter: int = 1
-    beat_index: int
+    chapter: int = Field(default=1, ge=1, le=10_000)
+    beat_index: int = Field(ge=0, le=10_000)
 
 
 class ClearFromBeatRequest(BaseModel):
-    chapter: int = 1
-    from_beat_index: int  # clears beats from this index onward
+    chapter: int = Field(default=1, ge=1, le=10_000)
+    from_beat_index: int = Field(ge=0, le=10_000)  # clears beats from this index onward
 
 
 class UploadResp(BaseModel):
@@ -134,37 +140,43 @@ class UploadResp(BaseModel):
 
 class StyleReq(BaseModel):
     prompt: str | None = Field(
-        default="", description="If empty -> default cyberpunk noir Berlin prompt."
+        default="",
+        max_length=MAX_DESC,
+        description="If empty -> default cyberpunk noir Berlin prompt.",
     )
 
 
 class SubmitFlux2Klein(BaseModel):
-    prompt: str = Field(min_length=1)
-    negative: str = ""
-    width: int = 1024
-    height: int = 1024
-    steps: int = 20
-    cfg: float = 5.0
-    seed: int = 0
-    filename_prefix: str = "Flux2-Klein"
+    prompt: str = Field(min_length=1, max_length=MAX_DESC)
+    negative: str = Field(default="", max_length=MAX_DESC)
+    width: int = Field(default=1024, ge=64, le=2048)
+    height: int = Field(default=1024, ge=64, le=2048)
+    steps: int = Field(default=20, ge=1, le=100)
+    cfg: float = Field(default=5.0, ge=0.0, le=30.0)
+    seed: int = Field(default=0, ge=0, le=2**31 - 1)
+    filename_prefix: str = Field(default="Flux2-Klein", max_length=64, pattern=r"^[A-Za-z0-9_\-]+$")
 
 
 class SubmitRequest(BaseModel):
-    pipeline: str = Field(min_length=1)
+    pipeline: Literal[
+        "flux2_klein_t2i", "flux2_klein_t2i_distilled", "flux2_klein_t2i_distilled_gguf"
+    ]
     params: dict = Field(default_factory=dict)
 
 
 class CharacterReq(BaseModel):
-    style_anchor: str = Field(default="")
-    scene_block: str = Field(default="")
-    character_anchor: str = Field(default="")
-    style_image: str = Field(default="", description="Filename in Comfy input/. Use /upload first.")
-    width: int = 768
-    height: int = 1152
-    steps: int = 4
-    cfg: float = 1.0
-    seed: int = 0
-    filename_prefix: str = "HERO-BASE"
+    style_anchor: str = Field(default="", max_length=MAX_DESC)
+    scene_block: str = Field(default="", max_length=MAX_DESC)
+    character_anchor: str = Field(default="", max_length=MAX_DESC)
+    style_image: str = Field(
+        default="", max_length=255, description="Filename in Comfy input/. Use /upload first."
+    )
+    width: int = Field(default=768, ge=64, le=2048)
+    height: int = Field(default=1152, ge=64, le=2048)
+    steps: int = Field(default=4, ge=1, le=100)
+    cfg: float = Field(default=1.0, ge=0.0, le=30.0)
+    seed: int = Field(default=0, ge=0, le=2**31 - 1)
+    filename_prefix: str = Field(default="HERO-BASE", max_length=64, pattern=r"^[A-Za-z0-9_\-]+$")
 
 
 class FluxCoverPrompt(BaseModel):
@@ -254,10 +266,10 @@ class CharacterIn(BaseModel):
 
 
 class CharactersAnchorsRequest(BaseModel):
-    title: str
-    genre: str
-    setting: str = ""
-    characters: list[CharacterIn]
+    title: str = Field(min_length=1, max_length=MAX_TITLE)
+    genre: str = Field(min_length=1, max_length=MAX_GENRE)
+    setting: str = Field(default="", max_length=MAX_DESC)
+    characters: list[CharacterIn] = Field(max_length=50)
 
 
 class ChapterSceneItem(BaseModel):

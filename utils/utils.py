@@ -217,6 +217,7 @@ def lang_label(code: str | None) -> str:
 
 async def require_project(store, project_id: str):
     if not await store.a_project_exists(project_id):
+        log.warning("Access to non-existent project_id: %s", project_id)
         raise HTTPException(status_code=404, detail="project not found")
     return store.scoped(project_id)
 

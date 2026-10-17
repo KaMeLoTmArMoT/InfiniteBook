@@ -70,3 +70,4 @@ indent-style = "space"
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
+testpaths = ["tests"]
