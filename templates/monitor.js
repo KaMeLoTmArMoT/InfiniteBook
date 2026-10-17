@@ -1,7 +1,7 @@
 let __lastTtsProvidersText = null;
 
 function connectMonitor() {
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${protocol}://${window.location.host}/ws/monitor`);
 
   ws.onmessage = (event) => {
@@ -15,34 +15,34 @@ function connectMonitor() {
 }
 
 function updateMonitorUI(data) {
-  const olStat = document.getElementById("ollama-status");
-  const olDot = document.getElementById("ollama-dot");
+  const olStat = document.getElementById('ollama-status');
+  const olDot = document.getElementById('ollama-dot');
 
-  if (data.ollama && data.ollama.status === "online") {
-    olStat.innerText = "Online";
-    olDot.classList.add("status-online");
+  if (data.ollama && data.ollama.status === 'online') {
+    olStat.innerText = 'Online';
+    olDot.classList.add('status-online');
   } else {
-    olStat.innerText = "Offline";
-    olDot.classList.remove("status-online");
+    olStat.innerText = 'Offline';
+    olDot.classList.remove('status-online');
   }
 
-  const llmEl = document.getElementById("llm-providers");
+  const llmEl = document.getElementById('llm-providers');
   if (llmEl) {
     const ps = data.providers?.llm || [];
-    llmEl.innerText = ps.length ? ps.join(", ") : "None";
+    llmEl.innerText = ps.length ? ps.join(', ') : 'None';
   }
 
-  const ttsEl = document.getElementById("tts-providers");
+  const ttsEl = document.getElementById('tts-providers');
   if (ttsEl) {
     const ps = data.providers?.tts || [];
-    const next = ps.length ? ps.join(", ") : "None";
+    const next = ps.length ? ps.join(', ') : 'None';
 
     const changed = next !== __lastTtsProvidersText;
     ttsEl.innerText = next;
 
     if (changed) {
       __lastTtsProvidersText = next;
-      if (typeof window.onTtsProvidersChanged === "function") {
+      if (typeof window.onTtsProvidersChanged === 'function') {
         window.onTtsProvidersChanged();
       }
     }
@@ -50,7 +50,7 @@ function updateMonitorUI(data) {
 
   const cpu = data.cpu;
   if (cpu && cpu.cpu_load != null) {
-    document.getElementById("cpu-load").innerText = `${Math.round(cpu.cpu_load)}%`;
+    document.getElementById('cpu-load').innerText = `${Math.round(cpu.cpu_load)}%`;
   }
 
   if (data.ram && !data.ram.error) {
@@ -58,31 +58,34 @@ function updateMonitorUI(data) {
     const total = data.ram.total || 0;
     const pct = total > 0 ? (used / total) * 100 : 0;
 
-  document.getElementById("ram-text").innerText =
-    `${(used / (1024 ** 3)).toFixed(1)}G / ${(total / (1024 ** 3)).toFixed(1)}G`;
+    document.getElementById('ram-text').innerText =
+      `${(used / 1024 ** 3).toFixed(1)}G / ${(total / 1024 ** 3).toFixed(1)}G`;
 
-    const bar = document.getElementById("ram-bar");
+    const bar = document.getElementById('ram-bar');
     bar.style.width = `${pct}%`;
-    bar.className = "progress-fill";
-    if (pct > 70) bar.classList.add("warning");
-    if (pct > 90) bar.classList.add("danger");
+    bar.className = 'progress-fill';
+    if (pct > 70) bar.classList.add('warning');
+    if (pct > 90) bar.classList.add('danger');
   }
 
   if (data.gpu && !data.gpu.error) {
-    document.getElementById("gpu-name").innerText = (data.gpu.name || "").replace("NVIDIA GeForce ", "");
-    document.getElementById("gpu-load").innerText = `${data.gpu.gpu_load}%`;
+    document.getElementById('gpu-name').innerText = (data.gpu.name || '').replace(
+      'NVIDIA GeForce ',
+      '',
+    );
+    document.getElementById('gpu-load').innerText = `${data.gpu.gpu_load}%`;
 
     const used = data.gpu.memory_used;
     const total = data.gpu.memory_total;
     const pct = total > 0 ? (used / total) * 100 : 0;
 
-    document.getElementById("vram-text").innerText =
+    document.getElementById('vram-text').innerText =
       `${(used / 1024).toFixed(1)}G / ${(total / 1024).toFixed(1)}G`;
 
-    const bar = document.getElementById("vram-bar");
+    const bar = document.getElementById('vram-bar');
     bar.style.width = `${pct}%`;
-    bar.className = "progress-fill";
-    if (pct > 70) bar.classList.add("warning");
-    if (pct > 90) bar.classList.add("danger");
+    bar.className = 'progress-fill';
+    if (pct > 70) bar.classList.add('warning');
+    if (pct > 90) bar.classList.add('danger');
   }
 }
