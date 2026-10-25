@@ -32,6 +32,12 @@ repos:
         additional_dependencies: ["@biomejs/biome@2.5.14"]
         files: ^templates/
 
+  - repo: https://github.com/kucherenko/jscpd
+    rev: v5.4.2
+    hooks:
+      - id: jscpd
+        args: ['--threshold', '3', '--min-tokens', '50', '--min-lines', '5', 'api', 'utils', 'tests']
+
   - repo: local
     hooks:
       - id: pytest
