@@ -8,7 +8,12 @@ import anyio
 from fastapi import HTTPException, Request, UploadFile
 
 from utils.core_logger import log
-from utils.imggen.job_utils import _kv_style_image_key, _now_ts, _save_png_for_project
+from utils.imggen.job_utils import (
+    _fetch_first_output_png,
+    _kv_style_image_key,
+    _now_ts,
+    _save_png_for_project,
+)
 from utils.imggen.pipelines import CharacterFromStyleParams
 from utils.prompts import PROMPT_CHARACTER_ANCHORS_BATCH
 from utils.pydantic_models import (
@@ -211,23 +216,7 @@ async def generate_character_image_task(*, request, project_id: str, char_id: in
 
         res = await img_mgr.provider.run_character_from_style_gguf(params)
 
-        itemh = res["history_item"]
-        outputs = itemh.get("outputs") or {}
-        img_meta = None
-        for _, out in outputs.items():
-            images = out.get("images") or []
-            if images:
-                img_meta = images[0]
-                break
-        if not img_meta:
-            raise RuntimeError("No images in comfy outputs")
-
-        png = await img_mgr.provider.client.view(
-            filename=img_meta["filename"],
-            subfolder=img_meta.get("subfolder", ""),
-            type_=img_meta.get("type", "output"),
-        )
-
+        png, img_meta = await _fetch_first_output_png(img_mgr.provider, res["history_item"])
         saved_path = await _save_png_for_project(ps, project_id, png, kind=f"char_{char_id}")
 
         result = {

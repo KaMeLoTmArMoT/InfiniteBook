@@ -4,7 +4,7 @@
 from fastapi import Request
 
 from utils.config import CFG
-from utils.imggen.job_utils import _now_ts, _save_png_for_project
+from utils.imggen.job_utils import _fetch_first_output_png, _now_ts, _save_png_for_project
 from utils.imggen.pipelines import Flux2KleinT2IDistilledGGUFParams
 from utils.prompts import PROMPT_FLUX_COVER
 from utils.pydantic_models import FluxCoverPrompt
@@ -75,23 +75,7 @@ async def _generate_cover_image_task(request: Request, project_id: str, img_mgr)
         )
         res = await img_mgr.provider.run_flux2_klein_t2i_distilled_gguf(params)
 
-        item = res["history_item"]
-        outputs = item.get("outputs") or {}
-        img_meta = None
-        for _, out in outputs.items():
-            images = out.get("images") or []
-            if images:
-                img_meta = images[0]
-                break
-        if not img_meta:
-            raise RuntimeError("No images in comfy outputs")
-
-        png = await img_mgr.provider.client.view(
-            filename=img_meta["filename"],
-            subfolder=img_meta.get("subfolder", ""),
-            type_=img_meta.get("type", "output"),
-        )
-
+        png, img_meta = await _fetch_first_output_png(img_mgr.provider, res["history_item"])
         saved_path = await _save_png_for_project(ps, project_id, png, kind="cover")
 
         result = {

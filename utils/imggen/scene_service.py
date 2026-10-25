@@ -14,6 +14,7 @@ from utils.imggen.character_service import (
 )
 from utils.imggen.job_utils import (
     _attach_task_logger,
+    _fetch_first_output_png,
     _now_ts,
     _save_png_for_project,
 )
@@ -116,7 +117,7 @@ async def generate_scene_image_task(
         char_image_filename = ""
         char_anchor_text = ""
 
-        # Спроба знайти картинку персонажа
+        # РЎРїСЂРѕР±Р° Р·РЅР°Р№С‚Рё РєР°СЂС‚РёРЅРєСѓ РїРµСЂСЃРѕРЅР°Р¶Р°
         if character_id is not None:
             char_res = await ps.a_kv_get(_kv_char_result_key(character_id)) or {}
             saved_path = char_res.get("saved_path")
@@ -179,27 +180,10 @@ async def generate_scene_image_task(
             )
             res = await img_mgr.provider.run_character_from_style_gguf(params)
 
-        itemh = res["history_item"]
-        outputs = itemh.get("outputs") or {}
-        img_meta = None
-        for _, out in outputs.items():
-            images = out.get("images") or []
-            if images:
-                img_meta = images[0]
-                break
-        if not img_meta:
-            raise RuntimeError("No images in comfy outputs")
-
-        png = await img_mgr.provider.client.view(
-            filename=img_meta["filename"],
-            subfolder=img_meta.get("subfolder", ""),
-            type_=img_meta.get("type", "output"),
-        )
-
+        png, img_meta = await _fetch_first_output_png(img_mgr.provider, res["history_item"])
         saved_path = await _save_png_for_project(
             ps, project_id, png, kind=f"ch{chapter_num}_beat{beat_index}"
         )
-
         result = {
             "status": "DONE",
             "finished_at": _now_ts(),

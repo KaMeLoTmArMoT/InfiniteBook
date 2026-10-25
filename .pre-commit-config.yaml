@@ -36,7 +36,7 @@ repos:
     rev: v5.4.2
     hooks:
       - id: jscpd
-        args: ['--threshold', '3', '--min-tokens', '50', '--min-lines', '5', 'api', 'utils', 'tests']
+        args: ['--threshold', '2', '--min-tokens', '50', '--min-lines', '5', 'api', 'utils', 'tests']
 
   - repo: local
     hooks:

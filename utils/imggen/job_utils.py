@@ -1,6 +1,7 @@
 import asyncio
 import time
 from pathlib import Path
+from typing import Any
 
 import anyio
 
@@ -48,3 +49,24 @@ async def _save_png_for_project(ps, project_id: str, png_bytes: bytes, kind: str
     path = out / fn
     await anyio.to_thread.run_sync(path.write_bytes, png_bytes)
     return str(path)
+
+
+async def _fetch_first_output_png(
+    provider, history_item: dict[str, Any]
+) -> tuple[bytes, dict[str, Any]]:
+    outputs = history_item.get("outputs") or {}
+    img_meta = None
+    for _, out in outputs.items():
+        images = out.get("images") or []
+        if images:
+            img_meta = images[0]
+            break
+    if not img_meta:
+        raise RuntimeError("No images in comfy outputs")
+
+    png = await provider.client.view(
+        filename=img_meta["filename"],
+        subfolder=img_meta.get("subfolder", ""),
+        type_=img_meta.get("type", "output"),
+    )
+    return png, img_meta

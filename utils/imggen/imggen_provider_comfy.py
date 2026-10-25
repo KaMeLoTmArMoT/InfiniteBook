@@ -43,13 +43,13 @@ class ComfyImgGenProvider:
             self._templates[key] = load_template(self.cfg.COMFY_TEMPLATES_DIR, key)
         return self._templates[key]
 
-    async def run_flux2_klein_t2i(self, params: Flux2KleinT2IParams) -> dict[str, Any]:
-        tpl = self._tpl("flux2_klein_t2i")
-        graph = build_flux2_klein_t2i(tpl, params)
-
+    async def _submit_and_wait(
+        self, graph: dict[str, Any], label: str | None = None
+    ) -> dict[str, Any]:
         client_id = str(uuid.uuid4())
         resp = await self.client.prompt(graph, client_id=client_id)
-        log.info("Comfy submit prompt_id=%s queue=%s", resp.prompt_id, resp.number)
+        if label:
+            log.info("Comfy submit %s prompt_id=%s queue=%s", label, resp.prompt_id, resp.number)
 
         item = await self.client.wait_done(
             resp.prompt_id,
@@ -61,48 +61,25 @@ class ComfyImgGenProvider:
             "queue_number": resp.number,
             "history_item": item,
         }
+
+    async def run_flux2_klein_t2i(self, params: Flux2KleinT2IParams) -> dict[str, Any]:
+        tpl = self._tpl("flux2_klein_t2i")
+        graph = build_flux2_klein_t2i(tpl, params)
+        return await self._submit_and_wait(graph, "")
 
     async def run_flux2_klein_t2i_distilled(
         self, params: Flux2KleinT2IDistilledParams
     ) -> dict[str, Any]:
         tpl = self._tpl("flux2_klein_t2i_distilled")
         graph = build_flux2_klein_t2i_distilled(tpl, params)
-
-        client_id = str(uuid.uuid4())
-        resp = await self.client.prompt(graph, client_id=client_id)
-        log.info("Comfy submit distilled prompt_id=%s queue=%s", resp.prompt_id, resp.number)
-
-        item = await self.client.wait_done(
-            resp.prompt_id,
-            poll_ms=self.cfg.COMFY_OUTPUT_POLL_MS,
-            timeout_s=self.cfg.COMFY_API_TIMEOUT_S,
-        )
-        return {
-            "prompt_id": resp.prompt_id,
-            "queue_number": resp.number,
-            "history_item": item,
-        }
+        return await self._submit_and_wait(graph, "distilled")
 
     async def run_flux2_klein_t2i_distilled_gguf(
         self, params: Flux2KleinT2IDistilledGGUFParams
     ) -> dict[str, Any]:
         tpl = self._tpl("flux2_klein_t2i_distilled_gguf")
         graph = build_flux2_klein_t2i_distilled_gguf(tpl, params)
-
-        client_id = str(uuid.uuid4())
-        resp = await self.client.prompt(graph, client_id=client_id)
-        log.info("Comfy submit gguf prompt_id=%s queue=%s", resp.prompt_id, resp.number)
-
-        item = await self.client.wait_done(
-            resp.prompt_id,
-            poll_ms=self.cfg.COMFY_OUTPUT_POLL_MS,
-            timeout_s=self.cfg.COMFY_API_TIMEOUT_S,
-        )
-        return {
-            "prompt_id": resp.prompt_id,
-            "queue_number": resp.number,
-            "history_item": item,
-        }
+        return await self._submit_and_wait(graph, "gguf")
 
     async def run_style_gguf(self, prompt: str | None) -> dict:
         text = (prompt or "").strip() or DEFAULT_STYLE_PROMPT
@@ -123,20 +100,9 @@ class ComfyImgGenProvider:
             **{**params.__dict__, "seed": random.randint(1, 2**31 - 1)}
         )
         graph = build_flux2_klein_character_style_ref_gguf(tpl, params)
-
-        client_id = str(uuid.uuid4())
-        resp = await self.client.prompt(graph, client_id=client_id)
-        item = await self.client.wait_done(
-            resp.prompt_id,
-            poll_ms=self.cfg.COMFY_OUTPUT_POLL_MS,
-            timeout_s=self.cfg.COMFY_API_TIMEOUT_S,
-        )
-        return {
-            "prompt_id": resp.prompt_id,
-            "queue_number": resp.number,
-            "history_item": item,
-            "seed": params.seed,
-        }
+        res = await self._submit_and_wait(graph)
+        res["seed"] = params.seed
+        return res
 
     async def run_scene_dual_ref_gguf(self, params: SceneFromStyleAndCharParams) -> dict:
         tpl = self._tpl("flux2_klein_scene_dual_ref_gguf")
@@ -147,24 +113,6 @@ class ComfyImgGenProvider:
         )
 
         graph = build_flux2_klein_scene_dual_ref_gguf(tpl, params)
-
-        client_id = str(uuid.uuid4())
-        resp = await self.client.prompt(graph, client_id=client_id)
-
-        log.info(
-            "Comfy submit scene_dual_ref prompt_id=%s queue=%s",
-            resp.prompt_id,
-            resp.number,
-        )
-
-        item = await self.client.wait_done(
-            resp.prompt_id,
-            poll_ms=self.cfg.COMFY_OUTPUT_POLL_MS,
-            timeout_s=self.cfg.COMFY_API_TIMEOUT_S,
-        )
-        return {
-            "prompt_id": resp.prompt_id,
-            "queue_number": resp.number,
-            "history_item": item,
-            "seed": params.seed,
-        }
+        res = await self._submit_and_wait(graph, "scene_dual_ref")
+        res["seed"] = params.seed
+        return res
