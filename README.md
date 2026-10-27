@@ -7,7 +7,7 @@ Idea → Plot → Characters → Chapter Beats → Beat Prose, with local Ollama
 
 ## About The Project
 
-Infinite Book Architect is a FastAPI + vanilla JS app for generating a complete story pipeline: pick an idea, generate a plot outline, build a cast, plan beats per chapter, and write beat prose.  
+Infinite Book Architect is a FastAPI + vanilla JS app for generating a complete story pipeline: pick an idea, generate a plot outline, build a cast, plan beats per chapter, and write beat prose.
 It supports multiple LLM providers behind a small gateway (local Ollama by default, OpenRouter for free cloud models).
 
 <p align="center">
@@ -66,7 +66,7 @@ It supports multiple LLM providers behind a small gateway (local Ollama by defau
    ```
 
 5. Open:
-   - http://127.0.0.1:8000/
+   - http://127.0.0.1:8002/
 
 ### Configuration (.env)
 
@@ -112,11 +112,11 @@ Notes:
 <details>
 <summary><b>TTS sample text (click to expand)</b></summary>
 
-> A sizzle escaped the ramen, steam momentarily obscuring the chipped ceramic bowl. Rain lashed against the corrugated plastic roof of the noodle bar, a relentless percussion against the low hum of the city. Arin’s fingers danced across the datapad’s surface, lines of code scrolling past in a blur of emerald and sapphire. He adjusted his mirrored shades, the reflection of the crowded bar distorting the faces of the patrons – a kaleidoscope of cybernetic enhancements and weary expressions. 
+> A sizzle escaped the ramen, steam momentarily obscuring the chipped ceramic bowl. Rain lashed against the corrugated plastic roof of the noodle bar, a relentless percussion against the low hum of the city. Arin’s fingers danced across the datapad’s surface, lines of code scrolling past in a blur of emerald and sapphire. He adjusted his mirrored shades, the reflection of the crowded bar distorting the faces of the patrons – a kaleidoscope of cybernetic enhancements and weary expressions.
 
-> **“Anything?”** a voice rasped beside him. Kaito, his face scarred and perpetually shadowed, tapped a nicotine-stained finger against the table. Arin didn’t look up, his focus absolute. 
+> **“Anything?”** a voice rasped beside him. Kaito, his face scarred and perpetually shadowed, tapped a nicotine-stained finger against the table. Arin didn’t look up, his focus absolute.
 
-> **“Firewall’s tighter than I anticipated,”** he muttered, zooming in on a schematic of Chronos Corp’s network. **“They’ve layered it with a quantum encryption protocol. Nasty.”** He took a long drag from a slim, black cigarette, the cherry glowing briefly in the dim light. The smell of synthetic pork and ozone clung to everything. 
+> **“Firewall’s tighter than I anticipated,”** he muttered, zooming in on a schematic of Chronos Corp’s network. **“They’ve layered it with a quantum encryption protocol. Nasty.”** He took a long drag from a slim, black cigarette, the cherry glowing briefly in the dim light. The smell of synthetic pork and ozone clung to everything.
 
 > Another voice, closer this time, slurred, **“Hey, chrome-face, you gonna eat that?”** Arin ignored him, his eyes fixed on the datapad. He initiated a brute-force decryption sequence. The bar's noise faded, replaced by the insistent whir of the datapad’s processors.
 </details>
